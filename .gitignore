@@ -1,0 +1,15 @@
+# The dev server's own output: rebuilt binaries and their leftovers.
+.mygo/
+build/
+
+# Packaged releases.
+dist/
+
+# Nothing in this app is generated, but an editor or a tool may leave these.
+*.exe
+*.dll
+*.log
+
+# OS clutter.
+.DS_Store
+Thumbs.db

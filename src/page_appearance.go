@@ -1,0 +1,182 @@
+package src
+
+import (
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
+	"github.com/oneo-me/onevra/source/components"
+	"github.com/oneo-me/onevra/source/icons/lucide"
+	"github.com/oneo-me/onevra/source/theme"
+)
+
+// accents are the colours the accent may take.
+var accents = []string{
+	"#6750a4", // purple
+	"#4a5c92", // indigo
+	"#00639b", // blue
+	"#006a6a", // teal
+	"#386a20", // green
+	"#6b5e00", // yellow
+	"#8f4c38", // brown
+	"#984061", // pink
+}
+
+// appearancePage draws the settings of the look and of the queue.
+//
+// The page is built from the same cards and rows as every other page, with
+// Onevra's own controls in them, so a setting sits where a track would: the
+// app has one grid, and settings are not a screen of their own.
+func (a *app) appearancePage(c *ui.Context) {
+	t := c.Theme()
+	a.pageFrame(c, true, func() {
+		ui.Column(c).FillWidth().Gap(t.Space(6)).Children(func() {
+			pageHead(c, "Look", "The theme, the colour it grows from, and how the queue plays.", nil)
+
+			group(c, "Theme", nil, func() {
+				setting(c, "Appearance", "Follow the desktop, or stay light or dark.", func() {
+					modes := []string{"System", "Light", "Dark"}
+					selected := 0
+					switch a.appearance.mode {
+					case "light":
+						selected = 1
+					case "dark":
+						selected = 2
+					}
+					segmented := ui.Segmented(c, &selected, modes...)
+					segmented.Width(t.Space(56))
+					if segmented.Changed() {
+						a.setMode(modes[selected])
+					}
+				})
+				hairline(c)
+				setting(c, "Colour", "Every colour in the app grows from this one.", nil)
+				ui.Row(c).Gap(t.Space(1)).Children(func() {
+					// The first swatch is the colour of the design itself, not
+					// the one laid over it, so a choice once made can be
+					// unmade.
+					base := theme.Palette(t.Dark)
+					a.accentSwatch(c, "", "Default", base.Accent, base.AccentText)
+					for _, accent := range accents {
+						a.accentSwatch(c, accent, "", ui.Hex(accent), ui.Hex(markOn(accent)))
+					}
+				})
+				hairline(c)
+				setting(c, "Colour from artwork",
+					"Take the accent from the cover of the track that plays.", func() {
+						dynamic := a.appearance.dynamic
+						toggle := components.Switch(c, &dynamic, "Colour from artwork",
+							components.SwitchOptions{HideLabel: true})
+						if toggle.Changed() {
+							a.setDynamic(dynamic)
+						}
+					})
+			})
+
+			group(c, "Queue", nil, func() {
+				setting(c, "Repeat", "What happens at the end of the queue.", func() {
+					labels := []string{"Off", "Queue", "Track"}
+					selected := a.repeatMode()
+					segmented := ui.Segmented(c, &selected, labels...)
+					segmented.Width(t.Space(52))
+					if segmented.Changed() {
+						a.setRepeat(selected)
+					}
+				})
+				hairline(c)
+				setting(c, "Shuffle", "Play the queue in a random order.", func() {
+					shuffle := a.isShuffle()
+					toggle := components.Switch(c, &shuffle, "Shuffle",
+						components.SwitchOptions{HideLabel: true})
+					if toggle.Changed() {
+						a.setShuffle(shuffle)
+					}
+				})
+			})
+		})
+	})
+}
+
+// accentSwatch draws one of the colours the accent may take.
+//
+// The chosen one carries a check rather than a ring: a ring would fight the
+// swatch's own edge, and the mark has to read on any colour. An empty accent
+// is the theme's own, which is what the app shows before the user picks one.
+func (a *app) accentSwatch(c *ui.Context, accent, name string, colour ui.Color, mark ui.Color) {
+	t := c.Theme()
+	chosen := a.appearance.accent == accent
+	key := "accent-" + accent
+	if accent == "" {
+		key = "accent-default"
+	}
+	if name == "" {
+		name = accent
+	}
+	button := ui.ButtonBase(c).Key(key).Size(t.Space(11), t.Space(11)).
+		Center().Radius(radiusPill(t)).Label("Accent "+name).Transition(motionPress)
+	if button.Hovered() {
+		button.Background(surface(c).card())
+	}
+	button.Children(func() {
+		swatch := ui.Box(c).Size(t.Space(8), t.Space(8)).Radius(radiusPill(t)).
+			Background(colour).Center()
+		swatch.Children(func() {
+			if chosen {
+				components.Icon(c, lucide.Check()).Size(t.Space(4), t.Space(4)).
+					TextColor(mark)
+			}
+		})
+	})
+	if button.Clicked() {
+		a.setAccent(accent)
+	}
+}
+
+// setMode keeps the appearance the user chose.
+//
+// The names are the ones the segmented control shows, not the ones the
+// settings keep: "Dark" is what the user picked, "dark" is what is stored.
+func (a *app) setMode(mode string) {
+	switch mode {
+	case "Light":
+		a.appearance.mode = "light"
+		mygo.Theme.SetSource(mygo.ThemeLight)
+	case "Dark":
+		a.appearance.mode = "dark"
+		mygo.Theme.SetSource(mygo.ThemeDark)
+	default:
+		a.appearance.mode = "system"
+		mygo.Theme.SetSource(mygo.ThemeSystem)
+	}
+	a.rememberAppearance()
+}
+
+// setAccent keeps the colour the user chose.
+func (a *app) setAccent(accent string) {
+	a.appearance.accent = accent
+	a.appearance.dynamic = false
+	a.rememberAppearance()
+}
+
+// setDynamic keeps whether the colour follows the artwork.
+func (a *app) setDynamic(dynamic bool) {
+	a.appearance.dynamic = dynamic
+	if dynamic {
+		a.appearance.accent = ""
+	}
+	a.rememberAppearance()
+}
+
+// rememberAppearance keeps what the user chose about the look.
+//
+// The mode is written back as the app holds it, so picking a colour does not
+// quietly reset the appearance to whatever the desktop is doing: a setting the
+// user did not touch has to survive a setting they did.
+func (a *app) rememberAppearance() {
+	if a.store == nil {
+		return
+	}
+	mode := a.appearance.mode
+	if mode == "" {
+		mode = "system"
+	}
+	a.store.SetAppearance(mode, a.appearance.accent, a.appearance.dynamic)
+}
