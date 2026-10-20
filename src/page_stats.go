@@ -124,10 +124,18 @@ func (a *app) statsMostPlayed(c *ui.Context, plays []libraryPlay) {
 				})
 				components.Text(c, played.title).FontSize(t.Rem(remBody)).
 					FontWeight(500).MaxLines(1).Ellipsis("…").Grow(1)
-				caption(c, fmt.Sprintf("%d plays", played.count))
+				caption(c, playsWord(played.count))
 			})
 		}
 	})
+}
+
+// playsWord says how often a track played, in words: one play is not "1 plays".
+func playsWord(count int) string {
+	if count == 1 {
+		return "1 play"
+	}
+	return fmt.Sprintf("%d plays", count)
 }
 
 // played is a track and how often it played.

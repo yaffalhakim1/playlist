@@ -1,5 +1,5 @@
 // Package library keeps what the app remembers between runs: the playlists
-// that were played, and the settings of the player.
+// that were read, the track that played last, and the settings of the player.
 package library
 
 import (
@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"youtube-playlist/internal/music"
 )
 
 // Recent is a playlist that was played.
@@ -20,6 +22,28 @@ type Recent struct {
 	Thumbnail string `json:"thumbnail"`
 	// At is when it was played.
 	At time.Time `json:"at"`
+}
+
+// Cached is a playlist the app has read, kept so that opening it again costs
+// no network at all: the tracks, their artwork and their lengths are here.
+type Cached struct {
+	// Link is the address the playlist was read from, which is the key.
+	Link string `json:"link"`
+	// Playlist is what was read: its name, its cover and its tracks.
+	Playlist music.Playlist `json:"playlist"`
+	// At is when it was read, so the oldest can be let go first.
+	At time.Time `json:"at"`
+}
+
+// Session is where the player was when the app was last closed: the playlist
+// that was open, the track that played, and how far into it.
+type Session struct {
+	// Link is the playlist that was open.
+	Link string `json:"link"`
+	// TrackID is the track that played.
+	TrackID string `json:"trackId"`
+	// Position is how far into the track it had played.
+	Position time.Duration `json:"position"`
 }
 
 // Play is a track that was played.
@@ -39,6 +63,8 @@ type Play struct {
 // Data is what the store keeps.
 type Data struct {
 	Recents []Recent `json:"recents"`
+	Cached  []Cached `json:"cached"`
+	Session Session  `json:"session"`
 	Plays   []Play   `json:"plays"`
 	Volume  float64  `json:"volume"`
 	Shuffle bool     `json:"shuffle"`
@@ -50,6 +76,20 @@ type Data struct {
 
 // maxRecents is how many playlists are remembered.
 const maxRecents = 20
+
+// maxCached is how many playlists keep their tracks, so opening one again
+// needs no network.
+//
+// The limit is on size, not count: a mix with a thousand tracks is a few
+// hundred kilobytes, and ten of those would be a slow file to read and write on
+// every position report.
+const (
+	maxCached      = 10
+	maxCachedBytes = 4 << 20
+)
+
+// MaxCached returns how many playlists keep their tracks.
+func MaxCached() int { return maxCached }
 
 // maxPlays is how many plays are remembered.
 const maxPlays = 2000
@@ -144,6 +184,69 @@ func (s *Store) AddRecent(link, title, thumbnail string) {
 		recents = recents[:maxRecents]
 	}
 	s.data.Recents = recents
+	s.mu.Unlock()
+	s.save()
+}
+
+// CachedPlaylist returns the tracks of a playlist that was read before, and
+// whether it is there at all.
+//
+// A cached playlist is what makes opening one again instant: the tracks come
+// from here, and nothing goes to the network.
+func (s *Store) CachedPlaylist(link string) (music.Playlist, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, cached := range s.data.Cached {
+		if cached.Link == link {
+			return cached.Playlist, true
+		}
+	}
+	return music.Playlist{}, false
+}
+
+// CachePlaylist keeps the tracks of a playlist, so opening it again needs no
+// network, and puts it first.
+//
+// A playlist too large to keep is left out rather than crowding the file: the
+// next open of it reads it again, which is the right trade for a mix of a
+// thousand tracks.
+func (s *Store) CachePlaylist(link string, list music.Playlist) {
+	size := 0
+	for _, track := range list.Tracks {
+		size += len(track.ID) + len(track.Title) + len(track.Artist) +
+			len(track.Album) + len(track.Thumbnail) + 64
+	}
+	if size > maxCachedBytes {
+		return
+	}
+	s.mu.Lock()
+	cached := []Cached{{Link: link, Playlist: list, At: time.Now()}}
+	for _, item := range s.data.Cached {
+		if item.Link == link {
+			continue
+		}
+		cached = append(cached, item)
+	}
+	if len(cached) > maxCached {
+		cached = cached[:maxCached]
+	}
+	s.data.Cached = cached
+	s.mu.Unlock()
+	s.save()
+}
+
+// Session returns where the player was when the app was last closed.
+func (s *Store) Session() Session {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.Session
+}
+
+// SetSession remembers where the player was, so the next run carries on from
+// there rather than starting the playlist again.
+func (s *Store) SetSession(session Session) {
+	s.mu.Lock()
+	s.data.Session = session
 	s.mu.Unlock()
 	s.save()
 }

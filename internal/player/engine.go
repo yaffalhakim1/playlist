@@ -251,6 +251,17 @@ func (e *Engine) Duration() time.Duration {
 
 // Play starts a track of the queue.
 func (e *Engine) Play(index int) {
+	e.playAt(index, 0)
+}
+
+// PlayAt starts a track of the queue at a place in it, which is how a track
+// that was playing when the app closed carries on rather than starting again.
+func (e *Engine) PlayAt(index int, at time.Duration) {
+	e.playAt(index, at)
+}
+
+// playAt starts a track at a place in it.
+func (e *Engine) playAt(index int, at time.Duration) {
 	e.mu.Lock()
 	if index < 0 || index >= len(e.queue) {
 		e.mu.Unlock()
@@ -266,7 +277,7 @@ func (e *Engine) Play(index int) {
 	e.mu.Unlock()
 
 	e.emit(Event{Kind: KindState, State: StateBuffering})
-	go e.start(track, index, generation)
+	go e.start(track, index, generation, at)
 }
 
 // Toggle plays the track that plays, or holds it.
@@ -360,8 +371,8 @@ func (e *Engine) move(step int) {
 	e.Play(index)
 }
 
-// start resolves the audio of a track and plays it.
-func (e *Engine) start(track music.Track, index, generation int) {
+// start resolves the audio of a track and plays it, from at.
+func (e *Engine) start(track music.Track, index, generation int, at time.Duration) {
 	url, err := e.resolver.Resolve(e.ctx, track.ID)
 	if err != nil {
 		e.fail(track, index, generation, err)
@@ -391,6 +402,12 @@ func (e *Engine) start(track music.Track, index, generation int) {
 	e.startedAt = time.Now()
 	volume := e.volume
 	e.mu.Unlock()
+
+	// Carry on where the last run stopped, before the first sample plays, so
+	// the track does not start again from the beginning.
+	if at > 0 && duration > 0 && at < duration {
+		sound.Seek(at)
+	}
 
 	sound.SetVolume(volume)
 	sound.Play()

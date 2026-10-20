@@ -29,6 +29,11 @@ import (
 // loadTimeout bounds the reading of a playlist.
 const loadTimeout = 3 * time.Minute
 
+// sessionInterval is how often the place in the track is written down: often
+// enough that a crash costs a second, rare enough that the file is not
+// rewritten five times a second.
+const sessionInterval = 5 * time.Second
+
 // The pages of the app.
 const (
 	pageHome       = "home"
@@ -69,6 +74,8 @@ type app struct {
 	seekValue float64
 	scrubbing bool
 	scrubAt   time.Time
+	// sessionAt is when the place in the track was last written down.
+	sessionAt time.Time
 
 	recents []library.Recent
 	art     *artwork
@@ -165,6 +172,7 @@ func (a *app) setup() {
 		a.mu.Lock()
 		a.closed = true
 		a.mu.Unlock()
+		a.rememberSession()
 		a.engine.Close()
 	})
 	a.art.onReady = func() {
@@ -172,7 +180,84 @@ func (a *app) setup() {
 	}
 	a.newTray()
 	a.registerKeys()
+	a.restoreSession()
 	go a.listen()
+}
+
+// restoreSession opens the playlist that was open when the app last closed,
+// from the cache, and puts the player where it left off.
+//
+// This is the difference between an app and a web page: the playlist is there
+// at once, and the track that was playing carries on from where it stopped
+// rather than starting the queue again.
+func (a *app) restoreSession() {
+	restored, ok := a.restoredState()
+	if !ok {
+		return
+	}
+	if a.engine != nil {
+		a.engine.SetQueue(restored.list.Tracks)
+		a.playAt(restored.index, restored.position)
+	}
+}
+
+// restored is where the last run left the app.
+type restored struct {
+	link     string
+	list     music.Playlist
+	index    int
+	position time.Duration
+}
+
+// restoredState reads the last session and the playlist it names, and puts the
+// page in the state the next run should start from. It returns false when
+// there is nothing to restore.
+//
+// It touches no engine and no window, so what the app would open on can be
+// checked without either.
+func (a *app) restoredState() (restored, bool) {
+	if a.store == nil {
+		return restored{}, false
+	}
+	session := a.store.Session()
+	if session.Link == "" {
+		return restored{}, false
+	}
+	list, ok := a.store.CachedPlaylist(session.Link)
+	if !ok || len(list.Tracks) == 0 {
+		// Nothing was kept for it, so the link waits in the field for the
+		// user to open it again.
+		a.link = session.Link
+		return restored{}, false
+	}
+
+	a.link = session.Link
+	a.playlist = &list
+	a.queue = list.Tracks
+	a.visible = visibleTracks(list.Tracks, "")
+	a.page = pagePlaylist
+
+	// Carry on at the track that played, at the place in it. A track that is
+	// no longer in the playlist starts the queue instead.
+	index := 0
+	for i, track := range list.Tracks {
+		if track.ID == session.TrackID {
+			index = i
+			break
+		}
+	}
+	a.current = index
+	a.position = session.Position
+	return restored{link: session.Link, list: list, index: index, position: session.Position}, true
+}
+
+// rememberSession keeps the playlist that is open and where the player is, so
+// the next run carries on from there. It takes the lock itself, for the places
+// that are not already holding it.
+func (a *app) rememberSession() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.saveSessionLocked()
 }
 
 // listen takes what the engine reports and applies it on the thread that
@@ -222,6 +307,8 @@ func (a *app) apply(event player.Event) {
 				a.duration = event.Track.Duration
 			}
 			a.tray.refresh(event.Track, event.State == player.StatePlaying)
+			// A new track is where the next run carries on from.
+			a.saveSessionLocked()
 		}
 		a.playing = event.State == player.StatePlaying
 	case player.KindState:
@@ -235,6 +322,12 @@ func (a *app) apply(event player.Event) {
 		if !a.scrubbing {
 			a.seekValue = event.Position.Seconds()
 		}
+		// The place in the track is written now and then, not on every report:
+		// the engine reports five times a second, and a file write that often
+		// costs more than the second of accuracy it buys.
+		if time.Since(a.sessionAt) > sessionInterval {
+			a.saveSessionLocked()
+		}
 	case player.KindError:
 		a.status = event.Err.Error()
 		a.notice = &notice{title: "That track will not play", body: event.Err.Error(), kind: "error"}
@@ -247,6 +340,25 @@ func (a *app) trackLocked() music.Track {
 		return music.Track{}
 	}
 	return a.queue[a.current]
+}
+
+// saveSessionLocked keeps where the player is. The caller holds the app's
+// lock.
+//
+// It is written as the track plays, now and then, and again when the track
+// changes: a second of the place in a track is worth keeping, five writes a
+// second is not.
+func (a *app) saveSessionLocked() {
+	if a.store == nil || a.link == "" {
+		return
+	}
+	track := a.trackLocked()
+	a.store.SetSession(library.Session{
+		Link:     a.link,
+		TrackID:  track.ID,
+		Position: a.position,
+	})
+	a.sessionAt = time.Now()
 }
 
 // contentTitle draws what sits in the shell header beside the window
@@ -282,16 +394,30 @@ func (a *app) contentTitle(c *ui.Context) {
 func (a *app) frame(c *ui.Context) {
 	a.shortcuts(c)
 	a.shellView(c)
-} // load reads the playlist of the link and starts it.
+} // load opens the playlist of the link and starts it.
+//
+// A playlist that was read before comes from the cache, so opening it again
+// costs no network at all; only a link the app has never seen is read from
+// YouTube.
 func (a *app) load() {
 	link := strings.TrimSpace(a.link)
 	if link == "" {
 		return
 	}
+
+	if a.store != nil {
+		if list, ok := a.store.CachedPlaylist(link); ok && len(list.Tracks) > 0 {
+			a.showPlaylist(link, list)
+			return
+		}
+	}
+
+	a.mu.Lock()
 	a.loading = true
 	a.status = "Reading the playlist…"
 	a.generation++
 	generation := a.generation
+	a.mu.Unlock()
 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), loadTimeout)
@@ -299,32 +425,51 @@ func (a *app) load() {
 		result, err := playlist.Load(ctx, link)
 		a.update(func() {
 			a.mu.Lock()
-			defer a.mu.Unlock()
-			if generation != a.generation {
+			stale := generation != a.generation
+			a.mu.Unlock()
+			if stale {
 				return // a newer link won
 			}
-			a.loading = false
 			if err != nil {
+				a.mu.Lock()
+				a.loading = false
 				a.status = err.Error()
 				a.notice = &notice{title: "That playlist would not open", body: err.Error(), kind: "error"}
+				a.mu.Unlock()
 				return
 			}
-			a.status = ""
-			a.playlist = result
-			a.queue = result.Tracks
-			a.visible = visibleTracks(result.Tracks, "")
-			a.filter = ""
-			a.engine.SetQueue(result.Tracks)
-			if a.store != nil {
-				a.store.AddRecent(link, result.Title, result.Thumbnail)
-				a.recents = a.store.Recents()
-			}
-			a.page = pagePlaylist
-			if len(result.Tracks) > 0 {
-				a.engine.Play(0)
-			}
+			a.showPlaylist(link, *result)
 		})
 	}()
+}
+
+// showPlaylist puts a playlist on the page and starts it, and keeps it for the
+// next time it is opened.
+func (a *app) showPlaylist(link string, list music.Playlist) {
+	a.mu.Lock()
+	a.loading = false
+	a.status = ""
+	a.playlist = &list
+	a.queue = list.Tracks
+	a.visible = visibleTracks(list.Tracks, "")
+	a.filter = ""
+	a.current = 0
+	a.position = 0
+	a.page = pagePlaylist
+	a.mu.Unlock()
+
+	if a.engine != nil {
+		a.engine.SetQueue(list.Tracks)
+	}
+	if a.store != nil {
+		a.store.AddRecent(link, list.Title, list.Thumbnail)
+		a.store.CachePlaylist(link, list)
+		a.recents = a.store.Recents()
+	}
+	a.rememberSession()
+	if len(list.Tracks) > 0 {
+		a.play(0)
+	}
 }
 
 // visibleTracks returns the places of the tracks whose title or artist holds

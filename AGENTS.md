@@ -202,6 +202,31 @@ the menu plays, holds and skips, and a click brings the window back. Quitting
 from that menu is the only way to end the app. The media keys of the keyboard
 are registered with `mygo.GlobalShortcut` and work from any window.
 
+### What the app remembers
+
+`internal/library` keeps three things beside the settings, and each one exists
+to save the user a wait:
+
+- **The playlists it has read** (`Cached`), so opening one again needs no
+  network at all. The link is the key; the tracks, their artists and their
+  lengths come back whole. Ten are kept, and one too large to keep is left out
+  rather than crowding the file, because the file is read and written as the
+  music plays.
+- **Where the player was** (`Session`): the playlist, the track, and the place
+  in it. On the next run the app opens that playlist from the cache and seeks
+  to that place, so a track carries on instead of starting the queue again.
+- **What played** (`Plays`), for the stats page.
+
+The session is written when a track changes, and every `sessionInterval` as the
+track plays: the engine reports the place five times a second, and a file write
+that often costs more than the second of accuracy it buys.
+
+`restoreSession` and `showPlaylist` read the cache before they read the network,
+and `playlist.Load` is reachable only from `load()` after a cache miss. Two
+tests pin that: `TestOpeningACachedPlaylistNeverLoads` and
+`TestRestoringNeverLoads` fail if a cached open bumps the load generation, which
+is what happens only when something is about to go out.
+
 ### Threads
 
 Keep I/O off the thread that draws. Guard the state the engine writes with the

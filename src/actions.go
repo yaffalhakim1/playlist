@@ -93,8 +93,19 @@ func (a *app) plays() []libraryPlay {
 	return a.store.Plays()
 }
 
+// playAt starts a track of the queue at a place in it.
+func (a *app) playAt(index int, at time.Duration) {
+	if a.engine == nil {
+		return
+	}
+	a.engine.PlayAt(index, at)
+}
+
 // play starts a track of the queue.
 func (a *app) play(index int) {
+	if a.engine == nil {
+		return
+	}
 	a.engine.Play(index)
 }
 

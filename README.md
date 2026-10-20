@@ -15,6 +15,11 @@ through [MyGo](https://mygo.egoist.dev), and the controls come from
   artist, album, artwork and length for every track.
 - Plays the audio, never the video.
 - Keeps a queue, with shuffle and repeat, and remembers what played.
+- **Opens where you left off.** The playlist you had is there at once, and the
+  track that was playing carries on from where it stopped, not from the top of
+  the queue.
+- **Reads a playlist once.** The tracks are kept on disk, so opening the same
+  playlist again needs no network at all.
 - Shows what you listened to: plays per day, and the tracks played most.
 - Lives in the notification area, so the music outlives the window. Closing the
   window hides it; the tray brings it back, and the media keys work from any
