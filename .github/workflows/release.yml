@@ -135,12 +135,28 @@ jobs:
           A native desktop player for YouTube playlists. Paste a link, and it plays
           the music of it.
 
-          ## What's new in 0.6.0
+          ## What's new in 0.6.1
 
-          **Last.fm scrobbling.** Connect your account in **Look → Last.fm** and the
-          track you play goes to your profile: what is playing now, and a scrobble
-          once you have heard half of it, or four minutes, whichever comes first.
-          Tracks of thirty seconds or less are never scrobbled.
+          **A track no longer stops mid-song.** When a stream breaks — a dropped
+          connection, a link that expired — the app finds it again and plays on
+          from where it stopped, instead of going silent or skipping the track.
+          Three tries in a row, and a stop in the last few seconds of a track
+          still counts as the track finishing.
+
+          **Start a mix** from the track that is playing. One button on the
+          player builds the mix YouTube generates around what you are hearing.
+          It needs no account.
+
+          **Saving a Last.fm key now tells you what happened.** The key is checked
+          with Last.fm before it is kept, the result is shown, and the secret
+          leaves the fields once it is saved.
+
+          ## Last.fm
+
+          Connect your account in **Look → Last.fm** and the track you play goes
+          to your profile: what is playing now, and a scrobble once you have
+          heard half of it, or four minutes, whichever comes first. Tracks of
+          thirty seconds or less are never scrobbled.
 
           The count comes from the player's position, not the clock, so holding a
           track, a buffering stall, or dragging the seek bar forward does not
