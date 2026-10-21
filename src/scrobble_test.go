@@ -1,6 +1,8 @@
 package src
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
@@ -25,13 +27,33 @@ func aTrack() music.Track {
 }
 
 // connected returns a scrobbler that is signed in, with an outbox that keeps
-// nothing on disk.
+// nothing on disk and a client that talks to no one.
+//
+// The client is pointed at a closed local port, so a test that reaches the
+// network by mistake fails fast rather than calling the real Last.fm with a
+// made-up key. Nothing here may touch the internet.
 func connected(t *testing.T) *scrobbler {
+	t.Helper()
+	s := following(t)
+	s.session = "session"
+	return s
+}
+
+// following returns a scrobbler that follows plays for an account but has no
+// session key, so nothing is ever sent.
+//
+// This is what the counting tests want: they check what qualifies, not what is
+// delivered, and a session key would start a call for every play.
+func following(t *testing.T) *scrobbler {
 	t.Helper()
 	s := newScrobbler()
 	s.configure("key", "secret")
+	// A listener that is closed at once: every call is refused locally.
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close()
+	s.client.Root = url
 	s.user = "someone"
-	s.session = "session"
 	return s
 }
 
@@ -49,7 +71,7 @@ func TestNothingIsSentWithoutAnAccount(t *testing.T) {
 // TestAPlayIsQueuedOnceItQualifies checks the whole path: a track playing
 // steadily is added to the outbox when half of it has been heard, and only then.
 func TestAPlayIsQueuedOnceItQualifies(t *testing.T) {
-	s := connected(t)
+	s := following(t)
 	track := aTrack()
 	s.begin(track, true)
 
@@ -74,7 +96,7 @@ func TestAPlayIsQueuedOnceItQualifies(t *testing.T) {
 // TestAPlayIsNeverQueuedTwice checks that a track left playing for hours is one
 // play, not one every time the threshold is crossed.
 func TestAPlayIsNeverQueuedTwice(t *testing.T) {
-	s := connected(t)
+	s := following(t)
 	track := aTrack()
 	s.begin(track, true)
 
@@ -92,7 +114,7 @@ func TestAPlayIsNeverQueuedTwice(t *testing.T) {
 // TestPausingStopsFollowing checks that turning scrobbling off leaves the play
 // out entirely: it was not followed from its start, so it cannot be submitted.
 func TestPausingStopsFollowing(t *testing.T) {
-	s := connected(t)
+	s := following(t)
 	track := aTrack()
 	s.begin(track, true)
 
@@ -114,7 +136,7 @@ func TestPausingStopsFollowing(t *testing.T) {
 // TestABreakStopsCounting checks the app's own guard: while the track is held,
 // the time does not count towards the threshold.
 func TestABreakStopsCounting(t *testing.T) {
-	s := connected(t)
+	s := following(t)
 	track := aTrack()
 	s.begin(track, true)
 
@@ -133,7 +155,7 @@ func TestABreakStopsCounting(t *testing.T) {
 // TestATrackWithNoArtistIsNotFollowed checks that a playlist without artists
 // does not queue plays Last.fm would reject.
 func TestATrackWithNoArtistIsNotFollowed(t *testing.T) {
-	s := connected(t)
+	s := following(t)
 	track := aTrack()
 	track.Artist = ""
 	s.begin(track, false)
@@ -232,6 +254,9 @@ func TestDisconnectingForgetsEverything(t *testing.T) {
 	}
 
 	s.disconnect()
+	// The outbox writes on its own goroutine, so the test waits for it before
+	// the temporary directory is removed under it.
+	s.outbox.Wait()
 
 	if key, _ := s.store.Load(); key != "" {
 		t.Error("the session key is still on disk after disconnecting")
