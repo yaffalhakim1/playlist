@@ -3,8 +3,8 @@
 A native desktop player for YouTube playlists. Paste a link, and it plays the
 music of it.
 
-No webview, no browser engine, no Electron. The window is drawn by the GPU
-through [MyGo](https://mygo.egoist.dev), and the controls come from
+developed with
+[MyGo](https://mygo.egoist.dev)
 [Onevra](https://oneo-me.github.io/onevra/).
 
 ![Home](docs/screenshots/home.png)
