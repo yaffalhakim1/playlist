@@ -94,6 +94,7 @@ type app struct {
 	// state as the page is drawn, and read back after it.
 	switchShuffle bool
 	switchDynamic bool
+	switchDiscord bool
 
 	// deleting is the playlist waiting to be deleted, if any.
 	deleting pendingDelete
@@ -101,6 +102,9 @@ type app struct {
 	// followedTrack is the track the Up next list was last scrolled to, so it
 	// follows the music without fighting the reader's own scrolling.
 	followedTrack int
+
+	// presence shows what plays in Discord, when it is turned on.
+	presence *presence
 
 	recents []library.Recent
 	art     *artwork
@@ -131,6 +135,8 @@ type appearance struct {
 	dynamic bool
 	// palette is the id of the colour scheme, empty for Onevra's own.
 	palette string
+	// discord shows what plays in Discord.
+	discord bool
 }
 
 // Run opens the window and runs the app until it closes.
@@ -159,10 +165,18 @@ func (a *app) setup() {
 			a.repeat = repeatByName(store.Repeat())
 			mode, accent, dynamic, palette := store.Appearance()
 			a.appearance = appearance{mode: mode, accent: accent, dynamic: dynamic, palette: palette}
+			a.appearance.discord = store.Discord()
 		}
 	}
 	if a.appearance.mode == "" {
 		a.appearance.mode = "system"
+	}
+
+	// Discord presence is off unless the user turned it on, and off entirely
+	// when the build has no application id to register it under.
+	a.presence = &presence{}
+	if a.appearance.discord && discordClientID != "" {
+		a.presence.enable(true)
 	}
 
 	a.engine = player.New(ytdlp.NewResolver())
@@ -200,6 +214,9 @@ func (a *app) setup() {
 		a.closed = true
 		a.mu.Unlock()
 		a.rememberSession()
+		if a.presence != nil {
+			a.presence.close()
+		}
 		a.engine.Close()
 	})
 	a.art.onReady = func() {
@@ -337,11 +354,22 @@ func (a *app) apply(event player.Event) {
 			a.tray.refresh(event.Track, event.State == player.StatePlaying)
 			// A new track is where the next run carries on from.
 			a.saveSessionLocked()
+			// Discord counts from the start of the track, so a new track resets
+			// the clock before it is shown.
+			if a.presence != nil {
+				a.presence.resetTrack()
+			}
 		}
 		a.playing = event.State == player.StatePlaying
+		if a.presence != nil {
+			a.presence.show(a.trackLocked(), a.playing)
+		}
 	case player.KindState:
 		a.playing = event.State == player.StatePlaying
 		a.tray.refresh(a.trackLocked(), a.playing)
+		if a.presence != nil {
+			a.presence.show(a.trackLocked(), a.playing)
+		}
 	case player.KindPosition:
 		a.position = event.Position
 		if event.Duration > 0 {

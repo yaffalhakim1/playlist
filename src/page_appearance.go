@@ -31,6 +31,7 @@ func (a *app) appearancePage(c *ui.Context) {
 	// real state here, before anything is drawn, and read back after.
 	a.switchShuffle = a.isShuffle()
 	a.switchDynamic = a.appearance.dynamic
+	a.switchDiscord = a.appearance.discord
 
 	a.pageFrame(c, true, func() {
 		ui.Column(c).FillWidth().Gap(t.Space(6)).Children(func() {
@@ -91,6 +92,12 @@ func (a *app) appearancePage(c *ui.Context) {
 					a.switchSetting(c, &a.switchShuffle, "Shuffle")
 				})
 			})
+
+			group(c, "Sharing", nil, func() {
+				setting(c, "Discord", a.discordHint(), func() {
+					a.switchSetting(c, &a.switchDiscord, "Discord")
+				})
+			})
 		})
 	})
 
@@ -102,6 +109,18 @@ func (a *app) appearancePage(c *ui.Context) {
 	if a.switchShuffle != a.isShuffle() {
 		a.setShuffle(a.switchShuffle)
 	}
+	if a.switchDiscord != a.appearance.discord {
+		a.setDiscord(a.switchDiscord)
+	}
+}
+
+// discordHint says what the Discord switch does, and why it cannot be turned on
+// when the build has no application id to register the presence under.
+func (a *app) discordHint() string {
+	if discordClientID == "" {
+		return "Show what plays in your Discord profile. This build has no Discord application id, so it cannot."
+	}
+	return "Show what plays in your Discord profile."
 }
 
 // switchSetting draws a switch bound to a setting, and reports whether the user
@@ -174,6 +193,26 @@ func (a *app) paletteAccent(t *ui.Theme) ui.Color {
 		return ui.Hex(p.light.accent)
 	}
 	return t.Accent
+}
+
+// setDiscord turns the Discord presence on or off, and keeps the choice.
+func (a *app) setDiscord(on bool) {
+	a.appearance.discord = on
+	if a.store != nil {
+		a.store.SetDiscord(on)
+	}
+	if a.presence == nil {
+		return
+	}
+	a.presence.enable(on && discordClientID != "")
+	if on && discordClientID != "" {
+		// Show what is playing now, rather than waiting for the next track.
+		a.mu.Lock()
+		track := a.trackLocked()
+		playing := a.playing
+		a.mu.Unlock()
+		a.presence.show(track, playing)
+	}
 }
 
 // setPalette keeps the Material 3 scheme the user chose.

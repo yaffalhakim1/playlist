@@ -73,6 +73,7 @@ type Data struct {
 	Accent  string   `json:"accent"`
 	Dynamic bool     `json:"dynamic"`
 	Palette string   `json:"palette"`
+	Discord bool     `json:"discord"`
 }
 
 // maxRecents is how many playlists are remembered.
@@ -333,6 +334,21 @@ func (s *Store) SetAppearance(mode, accent string, dynamic bool, palette string)
 	s.data.Accent = accent
 	s.data.Dynamic = dynamic
 	s.data.Palette = palette
+	s.mu.Unlock()
+	s.save()
+}
+
+// Discord tells whether the app shows what plays in Discord.
+func (s *Store) Discord() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.Discord
+}
+
+// SetDiscord remembers whether the app shows what plays in Discord.
+func (s *Store) SetDiscord(on bool) {
+	s.mu.Lock()
+	s.data.Discord = on
 	s.mu.Unlock()
 	s.save()
 }
