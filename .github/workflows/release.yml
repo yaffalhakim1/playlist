@@ -76,12 +76,21 @@ jobs:
         if: matrix.name == 'linux-amd64'
         run: go test ./...
 
-      - name: Package (Windows, macOS)
-        if: matrix.goos != 'linux'
+      - name: Package (Windows)
+        if: matrix.goos == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item playlist.exe dist/
+          Copy-Item README.md dist/ -ErrorAction SilentlyContinue
+          Compress-Archive -Path dist/* -DestinationPath ${{ matrix.archive }} -Force
+
+      - name: Package (macOS)
+        if: matrix.goos == 'darwin'
         shell: bash
         run: |
           mkdir -p dist
-          cp playlist${{ matrix.goos == 'windows' && '.exe' || '' }} dist/
+          cp playlist dist/
           cp README.md LICENSE* dist/ 2>/dev/null || true
           cd dist && zip -r ../${{ matrix.archive }} .
 

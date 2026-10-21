@@ -1,10 +1,12 @@
 package src
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 
 	"youtube-playlist/internal/library"
 	"youtube-playlist/internal/music"
@@ -215,4 +217,67 @@ func (a *app) pasteLink() {
 	}
 	a.link = strings.TrimSpace(text)
 	a.load()
+}
+
+// askDelete asks before a playlist is forgotten, because deleting is the one
+// thing in the app that cannot be undone.
+func (a *app) askDelete(link, title string) {
+	if title == "" {
+		title = link
+	}
+	a.deleting = pendingDelete{link: link, title: title, open: true}
+}
+
+// confirmDelete draws the question, and forgets the playlist when the answer
+// is yes.
+//
+// It is called from the frame, because a dialog is drawn and the answer comes
+// back a frame later. The buttons are "Delete" and "Cancel", in that order,
+// with the destructive one second: a stray Enter should keep the playlist, not
+// lose it.
+func (a *app) confirmDelete(c *ui.Context) {
+	if !a.deleting.open {
+		return
+	}
+	open := true
+	answer := ui.AlertDialog(c, &open,
+		"Delete this playlist?",
+		fmt.Sprintf("“%s” leaves the sidebar and the cache. What you listened to stays in your stats.",
+			a.deleting.title),
+		"Cancel", "Delete")
+	if answer == 1 {
+		a.deletePlaylist(a.deleting.link)
+	}
+	if answer >= 0 {
+		a.deleting = pendingDelete{}
+	}
+}
+
+// deletePlaylist forgets a playlist: the sidebar entry, the cached tracks, and
+// the session if it was the one open.
+func (a *app) deletePlaylist(link string) {
+	if a.store != nil {
+		a.store.ForgetPlaylist(link)
+		a.recents = a.store.Recents()
+	}
+
+	a.mu.Lock()
+	wasOpen := a.link == link
+	if wasOpen {
+		// The playlist that was open is gone, so nothing plays and the page
+		// goes home rather than showing a playlist that no longer exists.
+		a.playlist = nil
+		a.queue = nil
+		a.visible = nil
+		a.current = -1
+		a.position = 0
+		a.duration = 0
+		a.link = ""
+		a.page = pageHome
+	}
+	a.mu.Unlock()
+
+	if wasOpen && a.engine != nil {
+		a.engine.SetQueue(nil)
+	}
 }

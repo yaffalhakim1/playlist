@@ -51,6 +51,14 @@ type notice struct {
 	kind  string
 }
 
+// pendingDelete is a playlist the user asked to delete, waiting for the
+// confirmation that cannot be taken back.
+type pendingDelete struct {
+	link  string
+	title string
+	open  bool
+}
+
 // app is the whole interface: the state it shows and the actions it takes.
 type app struct {
 	mu sync.Mutex
@@ -83,6 +91,9 @@ type app struct {
 	// state as the page is drawn, and read back after it.
 	switchShuffle bool
 	switchDynamic bool
+
+	// deleting is the playlist waiting to be deleted, if any.
+	deleting pendingDelete
 
 	recents []library.Recent
 	art     *artwork
@@ -401,6 +412,7 @@ func (a *app) contentTitle(c *ui.Context) {
 func (a *app) frame(c *ui.Context) {
 	a.shortcuts(c)
 	a.shellView(c)
+	a.confirmDelete(c)
 } // load opens the playlist of the link and starts it.
 //
 // A playlist that was read before comes from the cache, so opening it again

@@ -61,6 +61,10 @@ func (a *app) destination(c *ui.Context, item destination) {
 
 // recentItem draws one of the playlists that were played before, under the
 // artwork it came with.
+//
+// A right click on it offers to forget it, which removes it from the sidebar,
+// from the cache, and from the session if it was the one open. Deleting is the
+// one thing here that cannot be undone, so it asks first.
 func (a *app) recentItem(c *ui.Context, link, title, thumbnail string) {
 	if title == "" {
 		title = link
@@ -72,7 +76,13 @@ func (a *app) recentItem(c *ui.Context, link, title, thumbnail string) {
 		a.art.want(thumbnail)
 		item = components.SidebarItem(c, title, lucide.ListMusic(), false)
 	}
-	if item.Key("recent-" + link).Clicked() {
+	item.Key("recent-" + link)
+	item.ContextMenu(func(m *ui.Menu) {
+		if m.Item("Delete playlist").Chosen() {
+			a.askDelete(link, title)
+		}
+	})
+	if item.Clicked() {
 		a.link = link
 		a.load()
 	}

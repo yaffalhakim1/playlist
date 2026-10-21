@@ -251,6 +251,37 @@ func (s *Store) SetSession(session Session) {
 	s.save()
 }
 
+// ForgetPlaylist removes a playlist from everything the app remembers about
+// it: the recent list, the cached tracks, and the session, if it was the one
+// open.
+//
+// The plays are left alone: the stats are a record of what was listened to,
+// and forgetting a playlist is not a reason to forget that it was heard.
+func (s *Store) ForgetPlaylist(link string) {
+	s.mu.Lock()
+	recents := s.data.Recents[:0]
+	for _, recent := range s.data.Recents {
+		if recent.Link != link {
+			recents = append(recents, recent)
+		}
+	}
+	s.data.Recents = recents
+
+	cached := s.data.Cached[:0]
+	for _, item := range s.data.Cached {
+		if item.Link != link {
+			cached = append(cached, item)
+		}
+	}
+	s.data.Cached = cached
+
+	if s.data.Session.Link == link {
+		s.data.Session = Session{}
+	}
+	s.mu.Unlock()
+	s.save()
+}
+
 // Plays returns what was played, oldest first.
 func (s *Store) Plays() []Play {
 	s.mu.Lock()
