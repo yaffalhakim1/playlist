@@ -25,6 +25,9 @@ jobs:
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    # A runner that never picks the job up should fail it, not hold the release
+    # open for hours. This is what a retired runner label did once.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -40,7 +43,8 @@ jobs:
             goarch: arm64
             archive: playlist-macos-arm64.zip
           - name: macos-amd64
-            os: macos-13
+            # macos-13 was retired; 15 is the oldest Intel image still served.
+            os: macos-15-intel
             goos: darwin
             goarch: amd64
             archive: playlist-macos-amd64.zip
