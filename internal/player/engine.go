@@ -79,6 +79,16 @@ const tick = 200 * time.Millisecond
 // ended. Without it, a machine with no audio device would skip the queue.
 const minPlayTime = 2 * time.Second
 
+// exhaustible is a decoder that can say when its stream has stopped, whether
+// it ended or failed.
+//
+// MyGo's audio player wraps the decoder and only reports that it stopped
+// playing, which is also true while a stream waits on the network. The engine
+// needs the difference, so it keeps the decoder itself as well.
+type exhaustible interface {
+	Exhausted() bool
+}
+
 // Engine plays a queue of tracks.
 type Engine struct {
 	resolver *ytdlp.Resolver
@@ -88,6 +98,7 @@ type Engine struct {
 	order      []int
 	cursor     int
 	current    *audio.Player
+	decoder    exhaustible
 	state      State
 	volume     float64
 	shuffle    bool
@@ -96,6 +107,10 @@ type Engine struct {
 	generation int
 	startedAt  time.Time
 	failure    error
+	// lastPlace and lastMoved track the place in the track between ticks, to
+	// tell a stream that has stopped from one that is still playing.
+	lastPlace time.Duration
+	lastMoved time.Time
 
 	events chan Event
 	ctx    context.Context
@@ -132,6 +147,7 @@ func (e *Engine) Close() {
 		e.current.Close()
 		e.current = nil
 	}
+	e.decoder = nil
 }
 
 // SetQueue replaces the queue of tracks and stops what plays.
@@ -321,9 +337,12 @@ func (e *Engine) Resume() {
 	}
 	e.current.Play()
 	e.state = StatePlaying
+	// The place stood still while the track was held. Without this, the stall
+	// that pausing caused would read as a dead stream, and resuming would end
+	// the track at once.
+	e.lastMoved = time.Now()
 	e.emit(Event{Kind: KindState, State: StatePlaying})
 }
-
 // Next plays the track after this one.
 func (e *Engine) Next() {
 	e.move(1)
@@ -342,6 +361,9 @@ func (e *Engine) Seek(at time.Duration) {
 		return
 	}
 	e.current.Seek(at)
+	// The place is about to jump, so it is not stalled; and a seek starts the
+	// decoder again, which clears its end.
+	e.lastPlace, e.lastMoved = at, time.Now()
 }
 
 // move steps through the queue.
@@ -398,8 +420,10 @@ func (e *Engine) start(track music.Track, index, generation int, at time.Duratio
 	}
 	e.loading = false
 	e.current = sound
+	e.decoder = decoder
 	e.state = StatePlaying
 	e.startedAt = time.Now()
+	e.lastPlace, e.lastMoved = 0, time.Now()
 	volume := e.volume
 	e.mu.Unlock()
 
@@ -461,12 +485,24 @@ func (e *Engine) run() {
 	}
 }
 
+// stallTime is how long the place in a track has to stand still, with the
+// decoder finished, before the track is taken for over.
+//
+// MyGo's player reads about a second ahead, so the decoder finishes while a
+// second of audio is still waiting to be heard; the place keeps advancing
+// until that has played. Three seconds is comfortably past the drain, and
+// short enough that a dead stream does not leave the player silent.
+const stallTime = 3 * time.Second
+
 // tick reports the place in the track, and moves on when the track ends.
 func (e *Engine) tick() {
 	e.mu.Lock()
 	current := e.current
+	decoder := e.decoder
 	state := e.state
 	started := e.startedAt
+	lastPlace := e.lastPlace
+	lastMoved := e.lastMoved
 	index := -1
 	if len(e.order) > 0 && state != StateIdle {
 		index = e.order[e.cursor]
@@ -477,6 +513,15 @@ func (e *Engine) tick() {
 	}
 	position := current.Position()
 	duration := current.Duration()
+
+	// Where the place in the track has moved, note when.
+	e.mu.Lock()
+	if position != lastPlace {
+		e.lastPlace, e.lastMoved = position, time.Now()
+		lastMoved = e.lastMoved
+	}
+	e.mu.Unlock()
+	stalled := !lastMoved.IsZero() && time.Since(lastMoved) > stallTime
 
 	// A track has ended when the place in it reaches its length, not when the
 	// player stops reporting that it plays. That flag drops as the mixer
@@ -489,9 +534,12 @@ func (e *Engine) tick() {
 			e.ended()
 			return
 		}
-		// Without a length there is nothing to compare against, so the flag
-		// is all there is: it means the decoder reached its end.
-		if duration <= 0 && !current.Playing() && position > 0 {
+		// The other way a track ends: its stream stopped before the length
+		// the metadata promised. The place in the track never reaches the
+		// length, so the comparison above can never fire, and without this
+		// the queue simply stops where the stream died.
+		exhausted := decoder != nil && decoder.Exhausted()
+		if streamEnded(exhausted, stalled, position, duration) {
 			e.ended()
 			return
 		}
@@ -512,19 +560,54 @@ func trackEnded(position, duration time.Duration) bool {
 	return position >= duration-100*time.Millisecond
 }
 
+// streamEnded tells whether the audio of a track has stopped for good before
+// the track's length.
+//
+// This is the other way a track ends, and the one the queue used to miss: the
+// stream dies — a dropped connection, a link that expired, a video whose audio
+// runs short of its metadata — and the place in the track stops moving at, say,
+// 2:38 of 3:15. The length comparison can never fire, because the place never
+// gets there, so the next track never started.
+//
+// Both halves are needed, and the second is what makes this safe:
+//
+//   - the decoder has finished. MyGo's player reads about a second ahead into a
+//     ring, so the decoder reaches its end while a second of audio is still
+//     waiting to be heard. That alone would cut the last second off every
+//     track, which is the bug this replaced.
+//   - the place in the track has stopped moving. Until the ring has drained,
+//     the place still advances; once it stops advancing while the decoder is
+//     finished, nothing more is coming.
+//
+// A decoder that has merely not produced samples yet is not finished, so a
+// stream waiting on the network is not the end.
+func streamEnded(exhausted, stalled bool, position, duration time.Duration) bool {
+	if !exhausted || !stalled {
+		return false
+	}
+	// A stream that ended within the tolerance of its length is the ordinary
+	// end, which the length comparison already reports. This one is for the
+	// stream that stopped early.
+	if duration > 0 && trackEnded(position, duration) {
+		return false
+	}
+	return true
+}
+
 // ended plays the next track when one ends.
 func (e *Engine) ended() {
 	e.mu.Lock()
 	repeat := e.repeat
+	index := -1
+	if len(e.order) > 0 {
+		index = e.order[e.cursor]
+	}
 	e.mu.Unlock()
-	if repeat == RepeatOne {
-		e.mu.Lock()
-		if e.current != nil {
-			e.current.Seek(0)
-			e.current.Play()
-		}
-		e.mu.Unlock()
-		e.emit(Event{Kind: KindState, State: StatePlaying})
+	if repeat == RepeatOne && index >= 0 {
+		// The track starts again from the beginning, and is resolved again:
+		// a stream that died early died with the link it was given, and the
+		// same link would die in the same place.
+		e.playAt(index, 0)
 		return
 	}
 	e.Next()
@@ -544,6 +627,7 @@ func (e *Engine) stopLocked() {
 		e.current.Close()
 		e.current = nil
 	}
+	e.decoder = nil
 	e.loading = false
 }
 

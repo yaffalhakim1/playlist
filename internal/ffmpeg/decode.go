@@ -66,14 +66,15 @@ type PCM struct {
 	duration time.Duration
 	ctx      context.Context
 
-	mu    sync.Mutex
-	cmd   *exec.Cmd
-	out   io.ReadCloser
-	wait  chan error
-	raw   []byte // bytes read but not decoded yet
-	frame int64  // frames decoded so far
-	done  bool
-	chunk []byte
+	mu      sync.Mutex
+	cmd     *exec.Cmd
+	out     io.ReadCloser
+	wait    chan error
+	raw     []byte // bytes read but not decoded yet
+	frame   int64  // frames decoded so far
+	done    bool
+	ended   bool // the stream stopped writing: the end, or a failure
+	chunk   []byte
 }
 
 // NewPCM starts ffmpeg on a stream and returns the decoder for it.
@@ -162,6 +163,18 @@ func (p *PCM) Close() error {
 	return nil
 }
 
+// Exhausted reports whether the stream has stopped producing audio, whether it
+// ended or failed.
+//
+// The player needs this to tell a track that finished from a track whose
+// stream died early: the place in the track alone cannot say, because a stream
+// that stopped at 2:38 of 3:15 never reaches the length the metadata promised.
+func (p *PCM) Exhausted() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.ended
+}
+
 // fill reads bytes until there are enough of them, or the stream ends.
 func (p *PCM) fill(want int) error {
 	if p.chunk == nil {
@@ -169,6 +182,9 @@ func (p *PCM) fill(want int) error {
 	}
 	for len(p.raw) < want {
 		if p.out == nil {
+			// The stream was closed under us, by a stop or by a process that
+			// died: either way it will write no more.
+			p.ended = true
 			return io.EOF
 		}
 		n, err := p.out.Read(p.chunk)
@@ -177,6 +193,8 @@ func (p *PCM) fill(want int) error {
 		}
 		if err != nil {
 			p.out = nil
+			// The stream will write no more, for whatever reason.
+			p.ended = true
 			if errors.Is(err, io.EOF) {
 				return io.EOF
 			}
@@ -242,6 +260,8 @@ func (p *PCM) start(at time.Duration) error {
 	p.cmd = cmd
 	p.out = out
 	p.wait = waited
+	// A fresh run writes again: whatever ended the last one is behind us.
+	p.ended = false
 	return nil
 }
 
