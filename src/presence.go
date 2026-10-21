@@ -13,9 +13,9 @@ import (
 //
 // Discord draws the panel with the name and pictures of this application, so it
 // has to exist in the Discord developer portal before presence shows anything.
-// Until one is set the integration stays off, which is why the field is empty by
-// default rather than filled with a made-up id that would show the wrong name.
-const discordClientID = ""
+// The panel reads "Axolotl" because that is what this application is called
+// there; renaming it in the portal renames the panel, and needs no rebuild.
+const discordClientID = "1562293136137523412"
 
 // presence shows what plays in Discord.
 //

@@ -1,243 +1,162 @@
 package src
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/egoist/mygo/ui/chart"
 	"github.com/oneo-me/onevra/source/components"
 )
 
-// statsDays is how many days the chart shows.
-const statsDays = 14
-
-// statsPage draws what was listened to: the plays of every day, the totals,
-// and the tracks played most.
+// statsPeriod is the period the page shows, kept on the app so it survives a
+// frame. It is an index into periodNames.
 //
-// The chart leads, because a shape says more about the last two weeks than a
-// row of numbers does. The totals are one line of text under it rather than
-// three equal cards: they are a summary, and a summary that takes a third of
-// the page is three cards agreeing with each other.
+// It is not saved: a wrap is a thing you look at, not a setting, and reopening
+// the app on "the last four weeks" is a better guess than reopening it on
+// whatever was chosen last.
+var statsPeriodIndex int
+
+// statsPage draws what was listened to, as one poster rather than a dashboard.
+//
+// A page of listening is a story, so it leads with the one fact worth leading
+// with — how much music, in plain words — and puts the few facts that earn their
+// place under it. The chart stays, because a shape says something a total
+// cannot, but it is the supporting evidence rather than the subject.
 func (a *app) statsPage(c *ui.Context) {
 	t := c.Theme()
 	plays := a.plays()
-	values, labels := playsPerDay(plays, statsDays)
+	p := period(statsPeriodIndex)
+	now := time.Now()
+	w := buildWrap(plays, p, now)
 
 	a.pageFrame(c, true, func() {
 		ui.Column(c).FillWidth().Gap(t.Space(6)).Children(func() {
-			pageHead(c, "Listening stats", totalsLine(plays), nil)
-			a.statsChart(c, values, labels)
-			if len(plays) > 0 {
-				a.statsMostPlayed(c, plays)
-			}
-		})
-	})
-}
-
-// totalsLine says what the numbers are, in the one line under the page's name:
-// how many plays, how many artists, how long. A page of listening is read as a
-// sentence, not as a dashboard.
-func totalsLine(plays []libraryPlay) string {
-	if len(plays) == 0 {
-		return "Nothing played yet. The days fill in as you listen."
-	}
-	playsWord := "plays"
-	if len(plays) == 1 {
-		playsWord = "play"
-	}
-	return fmt.Sprintf("%d %s · %d artists · %s", len(plays), playsWord,
-		countArtists(plays), listeningTime(plays))
-}
-
-// statsChart draws the plays of every day, on the accent, in a well of its
-// own so the bars read against a quieter face than the card.
-func (a *app) statsChart(c *ui.Context, values []float64, labels []string) {
-	s := surface(c)
-	t := c.Theme()
-	plays := 0.0
-	for _, value := range values {
-		plays += value
-	}
-	group(c, "Plays per day", func() {
-		caption(c, fmt.Sprintf("The last %d days", statsDays))
-	}, func() {
-		ui.Box(c).FillWidth().Height(t.Space(46)).Padding(t.Space(4)).
-			Radius(radiusControl(t)).Background(s.sunken()).Children(func() {
-			if plays == 0 {
-				// A chart of nothing has no shape to read: it says what would
-				// fill it instead of drawing an axis with no bars on it.
-				ui.Box(c).Fill().Center().Children(func() {
-					components.Text(c, "Play something, and the days fill in here.").
-						FontSize(t.Rem(remBody)).TextColor(s.muted()).TextAlign(ui.Center)
+			ui.Row(c).FillWidth().Gap(t.Space(4)).AlignItems(ui.End).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(1)).Children(func() {
+					pageName(c, "Your listening")
+					caption(c, w.supporting())
 				})
+				segmented := ui.Segmented(c, &statsPeriodIndex, periodNames...)
+				segmented.Width(t.Space(64))
+			})
+
+			if w.Empty() {
+				a.statsEmpty(c, p)
 				return
 			}
-			x := chart.NewBand(labels...).Padding(0.42, 0.12)
-			// Plays are whole things: the scale marks whole numbers, so it
-			// never asks the eye to read half a play.
-			y := chart.NewLinear(0, highest(values)).Nice(4)
-			y.Format = func(v float64) string { return fmt.Sprintf("%.0f", v) }
-			chart.Plot(c, chart.Axes{
-				Left:   y.Ticks(4),
-				Bottom: x.Ticks(),
-			}, func(area ui.Element) {
-				// The lines behind the bars are the chart's grid, drawn in the
-				// faintest line the theme has so the bars stay the subject.
-				area.Draw(func(p *ui.Painter, r ui.Rect) {
-					for _, tick := range y.Ticks(4) {
-						line := chart.Y(r, tick.At)
-						p.Line(r.X, line, r.X+r.W, line, 1, s.hairline())
-					}
-				})
-				for i, value := range values {
-					if value == 0 {
-						continue
-					}
-					chart.Rect(c, x.Band(i), y.Span(0, value)).
-						Background(s.accent()).Radius(t.Space(0.75))
-				}
-			}).Height(t.Space(38)).Gap(t.Space(2))
+
+			a.statsPoster(c, w)
+			a.statsFacts(c, w)
+			values, labels := playsPerDay(plays, statsDays)
+			a.statsChart(c, values, labels)
+			a.statsMostPlayed(c, plays)
 		})
 	})
 }
 
-// statsMostPlayed draws the tracks that played most, as a list of names with
-// the count at the right.
-func (a *app) statsMostPlayed(c *ui.Context, plays []libraryPlay) {
+// statsPoster is the one big statement: how much was heard, and the shape of it
+// underneath.
+func (a *app) statsPoster(c *ui.Context, w wrap) {
+	t := c.Theme()
+	card(c, func() {
+		ui.Column(c).FillWidth().Gap(t.Space(3)).Children(func() {
+			components.Text(c, w.headline()).
+				FontSize(t.Rem(remDisplay)).FontWeight(600).
+				LetterSpacing(trackDisplay(t)).LineHeight(leadDisplay).
+				MaxLines(3)
+			ui.Row(c).Gap(t.Space(6)).Wrap().Children(func() {
+				a.posterFact(c, "Top artist", w.TopArtist, w.TopArtistPlays)
+				a.posterFact(c, "Top track", w.TopTrack, w.TopTrackPlays)
+			})
+			// A strip of the period, one bar per day, so the poster carries its
+			// own shape instead of pointing at the chart below it.
+			a.posterStrip(c, w)
+		})
+	})
+}
+
+// posterFact is one of the two facts that sit under the headline.
+func (a *app) posterFact(c *ui.Context, label, value string, count int) {
 	s := surface(c)
 	t := c.Theme()
-	most := mostPlayed(plays, 6)
-	group(c, "Most played", nil, func() {
-		for i, played := range most {
-			if i > 0 {
-				hairline(c)
+	ui.Column(c).Grow(1).MinWidth(t.Space(40)).Gap(t.Space(0.5)).Children(func() {
+		caption(c, label)
+		components.Text(c, value).FontSize(t.Rem(remHeadline)).FontWeight(600).
+			LineHeight(leadHeadline).MaxLines(1).Ellipsis("…")
+		caption(c, playsWord(count))
+		_ = s
+	})
+}
+
+// posterStrip draws the plays of the period as a row of thin bars: the shape of
+// the listening, in the poster rather than in a chart with axes.
+func (a *app) posterStrip(c *ui.Context, w wrap) {
+	s := surface(c)
+	t := c.Theme()
+	// The bars are the last four weeks whatever the period, so the strip is a
+	// glance rather than a second chart.
+	values, _ := playsPerDay(a.plays(), statsDays)
+	top := highest(values)
+	ui.Row(c).FillWidth().Height(t.Space(9)).Gap(t.Space(0.75)).
+		AlignItems(ui.End).Children(func() {
+		for _, value := range values {
+			height := t.Space(1)
+			if top > 0 && value > 0 {
+				height = t.Space(1) + t.Space(8)*float32(value/top)
 			}
-			ui.Row(c).FillWidth().Gap(t.Space(4)).AlignItems(ui.Center).
-				Padding(t.Space(1), 0).Children(func() {
-				ui.Box(c).Size(t.Space(7), t.Space(7)).Shrink(0).Radius(radiusPill(t)).
-					Background(s.sunken()).Center().Children(func() {
-					components.Text(c, fmt.Sprintf("%d", i+1)).FontSize(t.Rem(remCaption)).
-						FontWeight(500).TextColor(s.muted()).FontFeatures("tnum")
-				})
-				components.Text(c, played.title).FontSize(t.Rem(remBody)).
-					FontWeight(500).MaxLines(1).Ellipsis("…").Grow(1)
-				caption(c, playsWord(played.count))
-			})
+			bar := ui.Box(c).Grow(1).Height(height).Radius(t.Space(0.5))
+			if value > 0 {
+				bar.Background(s.accent())
+			} else {
+				bar.Background(s.hairline())
+			}
 		}
 	})
 }
 
-// playsWord says how often a track played, in words: one play is not "1 plays".
-func playsWord(count int) string {
-	if count == 1 {
-		return "1 play"
-	}
-	return fmt.Sprintf("%d plays", count)
-}
-
-// played is a track and how often it played.
-type played struct {
-	title string
-	count int
-	// id breaks a tie between two tracks of the same name, so the order is
-	// total and never depends on how a map happened to iterate.
-	id string
-}
-
-// mostPlayed returns the tracks played most, the first first.
-//
-// The order is total and stable: by count, most first, and then by name, so
-// two tracks played the same number of times always come out the same way
-// round. Without that tiebreak the order would follow Go's map iteration,
-// which is randomized on every pass: the page is drawn on every frame, so the
-// list would shuffle itself while the user looked at it.
-func mostPlayed(plays []libraryPlay, limit int) []played {
-	counts := map[string]int{}
-	names := map[string]string{}
-	for _, play := range plays {
-		counts[play.TrackID]++
-		names[play.TrackID] = play.Title
-	}
-	list := make([]played, 0, len(counts))
-	for id, count := range counts {
-		list = append(list, played{title: names[id], count: count, id: id})
-	}
-	slices.SortFunc(list, func(a, b played) int {
-		if a.count != b.count {
-			return cmp.Compare(b.count, a.count) // most plays first
-		}
-		if a.title != b.title {
-			return cmp.Compare(a.title, b.title)
-		}
-		return cmp.Compare(a.id, b.id) // the same name twice is still a total order
+// statsFacts is the row of three facts that earn their place: the streak, the
+// busiest hour, and how many days were listened to at all.
+func (a *app) statsFacts(c *ui.Context, w wrap) {
+	s := surface(c)
+	t := c.Theme()
+	ui.Row(c).FillWidth().Gap(t.Space(4)).Children(func() {
+		a.factTile(c, "In a row", fmt.Sprintf("%d", w.Streak), plural(w.Streak, "day"))
+		a.factTile(c, "Most often", hourWords(w.BusiestHour), "of the day")
+		a.factTile(c, "Days listened", fmt.Sprintf("%d", w.Days), "in this period")
+		_ = s
 	})
-	if len(list) > limit {
-		list = list[:limit]
-	}
-	return list
 }
 
-// playsPerDay counts the plays of every day, oldest first.
-func playsPerDay(plays []libraryPlay, days int) ([]float64, []string) {
-	now := time.Now()
-	values := make([]float64, days)
-	labels := make([]string, days)
-	for i := range days {
-		day := now.AddDate(0, 0, -(days - 1 - i))
-		labels[i] = day.Format("Jan 2")
-	}
-	for _, play := range plays {
-		for i := range days {
-			day := now.AddDate(0, 0, -(days - 1 - i))
-			if play.At.Year() == day.Year() && play.At.YearDay() == day.YearDay() {
-				values[i]++
-				break
+// factTile is one small fact: a number or a phrase, and what it counts.
+func (a *app) factTile(c *ui.Context, label, value, note string) {
+	s := surface(c)
+	t := c.Theme()
+	ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(0.5)).Padding(t.Space(4)).
+		Radius(radiusControl(t)).Background(s.card()).Children(func() {
+		caption(c, label)
+		components.Text(c, value).FontSize(t.Rem(remHeadline)).FontWeight(600).
+			LineHeight(leadHeadline).MaxLines(1).Ellipsis("…")
+		caption(c, note)
+	})
+}
+
+// statsEmpty says what a period with nothing in it needs, and offers the way to
+// a period that has something.
+func (a *app) statsEmpty(c *ui.Context, p period) {
+	s := surface(c)
+	t := c.Theme()
+	card(c, func() {
+		ui.Column(c).FillWidth().Gap(t.Space(2)).Padding(t.Space(4), 0).
+			Center().Children(func() {
+			components.Text(c, "Nothing in this period.").FontSize(t.Rem(remTitle)).
+				FontWeight(600)
+			components.Text(c, "Listen for a while and it fills in.").
+				FontSize(t.Rem(remBody)).TextColor(s.muted())
+			if p != periodAll {
+				if components.Button(c, "Show all time", components.ButtonSecondary).Clicked() {
+					statsPeriodIndex = int(periodAll)
+				}
 			}
-		}
-	}
-	return values, labels
-}
-
-// highest returns the largest of the values, and at least one.
-func highest(values []float64) float64 {
-	top := 0.0
-	for _, value := range values {
-		if value > top {
-			top = value
-		}
-	}
-	if top == 0 {
-		return 1
-	}
-	return top
-}
-
-// countArtists returns how many different artists were played.
-func countArtists(plays []libraryPlay) int {
-	seen := map[string]bool{}
-	for _, play := range plays {
-		artist := play.Artist
-		if artist == "" {
-			artist = play.TrackID
-		}
-		seen[artist] = true
-	}
-	return len(seen)
-}
-
-// listeningTime returns how long the music played, in words.
-func listeningTime(plays []libraryPlay) string {
-	var total time.Duration
-	for _, play := range plays {
-		total += play.Listened
-	}
-	hours := int(total.Hours())
-	minutes := int(total.Minutes()) % 60
-	if hours == 0 {
-		return fmt.Sprintf("%d min", minutes)
-	}
-	return fmt.Sprintf("%d h %d min", hours, minutes)
+		})
+	})
 }

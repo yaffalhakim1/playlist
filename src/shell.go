@@ -121,7 +121,7 @@ func (a *app) pageTitle() string {
 	case pageQueue:
 		return "Queue"
 	case pageStats:
-		return "Listening stats"
+		return "Your listening"
 	case pageAppearance:
 		return "Appearance"
 	default:

@@ -149,7 +149,7 @@ func TestEmptyStatsSaysWhatWouldFillIt(t *testing.T) {
 	a := &app{art: newArtwork(), current: -1, page: pageStats}
 	tester := ui.NewTester(a.frame, 1280, 840)
 	tester.Frame()
-	if !tester.HasText("Play something, and the days fill in here.") {
+	if !tester.HasText("Nothing in this period.") {
 		t.Errorf("the empty chart does not say what would fill it: %v", tester.Texts())
 	}
 }

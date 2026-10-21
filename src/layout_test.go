@@ -374,7 +374,7 @@ func TestReduceMotionStillDraws(t *testing.T) {
 	a.page = pageStats
 	tester.Frame()
 	tester.Frame()
-	if !tester.HasText("Listening stats") {
+	if !tester.HasText("Your listening") {
 		t.Errorf("the new page did not arrive with reduced motion: %v", tester.Texts())
 	}
 }
@@ -411,6 +411,9 @@ func TestEveryPageDrawsInTheDark(t *testing.T) {
 			// The player names the track rather than the page, so it is the
 			// track that has to be there.
 			name := a.pageTitle()
+			if page == pageStats {
+				name = "Your listening"
+			}
 			if page == pagePlayer {
 				name = "It Will Rain"
 			}
