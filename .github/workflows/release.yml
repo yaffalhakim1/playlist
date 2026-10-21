@@ -146,6 +146,10 @@ jobs:
           | Debian, Ubuntu | `playlist_<version>_amd64.deb` | `sudo dpkg -i` it, or install from your file manager. |
           | Other Linux | `playlist-<version>-linux-amd64.tar.gz` | Unpack it, then run `./install.sh`. |
 
+          GitHub turns the spaces in a file name into dots, so the Windows files
+          are listed as `Playlist.Setup.<version>.amd64.exe` and the disk images
+          as `Playlist.<version>.arm64.dmg`. They are the same files.
+
           The macOS builds are ad-hoc signed, not notarized, so the first launch
           needs right-click, Open. That is the price of shipping without a paid
           Apple developer account.
