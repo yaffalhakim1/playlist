@@ -65,7 +65,7 @@ func TestAccentIsRemembered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen the store: %v", err)
 	}
-	mode, accent, dynamic := reopened.Appearance()
+	mode, accent, dynamic, _ := reopened.Appearance()
 	if accent != "#386a20" {
 		t.Errorf("the accent came back as %q, not #386a20", accent)
 	}

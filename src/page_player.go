@@ -75,6 +75,11 @@ func (a *app) playerStage(c *ui.Context, track music.Track) {
 
 // playerNext is what plays after this: the queue, on a card of its own beside
 // the player.
+//
+// It opens on the track that plays, not on the first of the queue: a playlist
+// of a thousand tracks would otherwise need a scroll to find what is on. When
+// the track changes it follows, and the reader can still scroll anywhere after
+// that.
 func (a *app) playerNext(c *ui.Context) {
 	s := surface(c)
 	t := c.Theme()
@@ -88,11 +93,27 @@ func (a *app) playerNext(c *ui.Context) {
 				})
 				return
 			}
+			a.followPlaying(c, &a.queueL)
 			components.List(c, &a.queueL, len(a.queue), func(i int) {
 				a.queueRow(c, i)
 			}).Grow(1).MinHeight(t.Space(30))
 		}).Grow(1).MinHeight(0)
 	})
+}
+
+// followPlaying scrolls a list to the track that plays, once, when it changes.
+//
+// "Once" matters: scrolling on every frame would fight the reader, who may
+// want to look further down the queue while the music plays.
+func (a *app) followPlaying(c *ui.Context, list *components.ListState) {
+	current := a.currentIndex()
+	if current < 0 || current == a.followedTrack {
+		return
+	}
+	a.followedTrack = current
+	// The list lays out after this frame, so the scroll is asked for then.
+	c.After(0)
+	list.ScrollTo(current, ui.Start)
 }
 
 // queuePage draws the queue: the tracks that play, and the one that plays

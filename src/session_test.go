@@ -231,7 +231,7 @@ func TestRestoreFallsBackToTheFirstTrack(t *testing.T) {
 // the app plays, not only at quit: an app that is killed does not get to quit.
 func TestSessionIsWrittenWhenTheTrackChanges(t *testing.T) {
 	store := openStore(t)
-	a := &app{art: newArtwork(), current: -1, link: "link-a", store: store}
+	a := &app{art: newArtwork(), current: -1, link: "link-a", openLink: "link-a", store: store}
 	a.queue = samplePlaylist().Tracks
 	a.tray = &tray{app: a}
 
@@ -281,7 +281,7 @@ func TestCachedLoadStartsTheQueue(t *testing.T) {
 // is here to stop.
 func TestThePlaceInTheTrackIsWrittenDown(t *testing.T) {
 	store := openStore(t)
-	a := &app{art: newArtwork(), current: 0, link: "link-a", store: store}
+	a := &app{art: newArtwork(), current: 0, link: "link-a", openLink: "link-a", store: store}
 	a.queue = samplePlaylist().Tracks
 	a.tray = &tray{app: a}
 
@@ -302,7 +302,7 @@ func TestThePlaceInTheTrackIsWrittenDown(t *testing.T) {
 // the second of accuracy it buys.
 func TestThePlaceIsNotWrittenFiveTimesASecond(t *testing.T) {
 	store := openStore(t)
-	a := &app{art: newArtwork(), current: 0, link: "link-a", store: store}
+	a := &app{art: newArtwork(), current: 0, link: "link-a", openLink: "link-a", store: store}
 	a.queue = samplePlaylist().Tracks
 	a.tray = &tray{app: a}
 
@@ -326,7 +326,7 @@ func TestThePlaceIsNotWrittenFiveTimesASecond(t *testing.T) {
 // delay and not a stop: once the interval has passed, the new place is kept.
 func TestThePlaceIsWrittenAgainAfterTheInterval(t *testing.T) {
 	store := openStore(t)
-	a := &app{art: newArtwork(), current: 0, link: "link-a", store: store}
+	a := &app{art: newArtwork(), current: 0, link: "link-a", openLink: "link-a", store: store}
 	a.queue = samplePlaylist().Tracks
 	a.tray = &tray{app: a}
 

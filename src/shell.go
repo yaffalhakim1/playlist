@@ -78,6 +78,10 @@ func (a *app) recentItem(c *ui.Context, link, title, thumbnail string) {
 	}
 	item.Key("recent-" + link)
 	item.ContextMenu(func(m *ui.Menu) {
+		// Onevra's own components (Tabs, Honeycomb) hand MyGo a *ui.Menu the
+		// same way; there is no Onevra context-menu component to use instead.
+		m.Item("Open").Chosen()
+		m.Separator()
 		if m.Item("Delete playlist").Chosen() {
 			a.askDelete(link, title)
 		}

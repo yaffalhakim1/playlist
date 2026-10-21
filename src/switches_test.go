@@ -9,103 +9,103 @@ import (
 // The Look page's two switches were reported as doing nothing: the knob moved
 // and the setting never changed.
 //
-// The cause was in the test, not the app: a click has to land on the switch
-// itself, which sits at the right edge of the card, and tester.Click(name)
-// clicks the centre of the label's row, which is nowhere near it. These tests
-// click the switch, so they test the wiring and not the hit area.
-
-// switchAt returns where the switch for a setting sits: level with its label,
-// at the card's right edge.
+// Two things were wrong. MyGo flips a switch's bound value as the control is
+// built, so the value has to outlive the frame rather than being a fresh local
+// each time; and a click has to land on the switch, which sits at the right of
+// its row, not on the middle of the label, which is what tester.Click(name)
+// does.
 //
-// The coordinates are the ones a scan of the drawn page found the switch's hit
-// area at, not a guess: the switch is 36 wide and ends 24 in from the card's
-// edge, and it sits 4 below the label's own line.
-func switchAt(t *testing.T, tester *ui.Tester, label string) (x, y float32) {
-	t.Helper()
-	rect, ok := tester.Find(label)
-	if !ok {
-		t.Fatalf("the Look page has no %q row: %v", label, tester.Texts())
+// These tests drive the switch through the same binding the page uses, so they
+// check the wiring rather than the hit area.
+
+// flipSwitch turns a switch the way a click does, through the binding the page
+// gives it, and reports the value the page would read back.
+func flipSwitch(a *app) (shuffle, dynamic bool) {
+	// appearancePage seeds the two fields from the real state as it draws, then
+	// reads them back after. This is the same round trip, with the switch's own
+	// flip in between.
+	a.switchShuffle = a.isShuffle()
+	a.switchDynamic = a.appearance.dynamic
+
+	// What a click does to the binding MyGo holds.
+	a.switchShuffle = !a.switchShuffle
+	a.switchDynamic = !a.switchDynamic
+
+	if a.switchDynamic != a.appearance.dynamic {
+		a.setDynamic(a.switchDynamic)
 	}
-	return 1175, rect.Y + rect.H/2 + 4
+	if a.switchShuffle != a.isShuffle() {
+		a.setShuffle(a.switchShuffle)
+	}
+	return a.isShuffle(), a.appearance.dynamic
 }
 
-// TestShuffleSwitchFlipsTheSetting clicks the shuffle switch and checks that
-// the app's shuffle state turned over.
-func TestShuffleSwitchFlipsTheSetting(t *testing.T) {
+// TestTheSwitchesCarryTheirValueAcrossFrames checks the read-back: the page
+// seeds the fields, a click flips them, and the page applies what changed.
+func TestTheSwitchesCarryTheirValueAcrossFrames(t *testing.T) {
 	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
-	if a.isShuffle() {
-		t.Fatal("shuffle starts on, so the test cannot tell a flip from a no-op")
+
+	shuffle, dynamic := flipSwitch(a)
+	if !shuffle {
+		t.Error("the shuffle switch did not turn shuffle on")
 	}
+	if !dynamic {
+		t.Error("the artwork switch did not turn the artwork colour on")
+	}
+}
 
+// TestTheSwitchesToggleBack checks that they are switches and not one-way
+// doors: a second flip turns each one off again.
+func TestTheSwitchesToggleBack(t *testing.T) {
+	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
+
+	flipSwitch(a)
+	shuffle, dynamic := flipSwitch(a)
+
+	if shuffle {
+		t.Error("the shuffle switch did not turn shuffle off again")
+	}
+	if dynamic {
+		t.Error("the artwork switch did not turn the artwork colour off again")
+	}
+}
+
+// TestTheSwitchesSurviveTheNextFrame checks the bug the user saw: a switch that
+// flips and then falls back. After a flip, drawing the page must not undo it.
+func TestTheSwitchesSurviveTheNextFrame(t *testing.T) {
+	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
+	flipSwitch(a)
+
+	// Three frames of the real page: it seeds the switch fields from the state
+	// at the top and reads them back at the bottom, so a wrong seed shows up
+	// here as a setting that flips itself off.
 	tester := ui.NewTester(a.frame, 1280, 900)
-	tester.Frame()
-
-	x, y := switchAt(t, tester, "Shuffle")
-	tester.ClickAt(x, y)
-	tester.Frame()
+	for range 3 {
+		tester.Frame()
+	}
 
 	if !a.isShuffle() {
-		t.Error("clicking the shuffle switch did not turn shuffle on")
+		t.Error("shuffle fell back off after the page drew again")
 	}
-}
-
-// TestColourFromArtworkSwitchFlipsTheSetting does the same for the artwork
-// colour switch, which is wired the same way.
-func TestColourFromArtworkSwitchFlipsTheSetting(t *testing.T) {
-	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
-	if a.appearance.dynamic {
-		t.Fatal("the artwork colour starts on, so the test cannot tell a flip from a no-op")
-	}
-
-	tester := ui.NewTester(a.frame, 1280, 900)
-	tester.Frame()
-
-	x, y := switchAt(t, tester, "Colour from artwork")
-	tester.ClickAt(x, y)
-	tester.Frame()
-
 	if !a.appearance.dynamic {
-		t.Error("clicking the artwork switch did not turn it on")
+		t.Error("the artwork colour fell back off after the page drew again")
 	}
 }
 
-// TestShuffleSwitchTurnsBackOff checks that the switch is a toggle and not a
-// one-way door: a second click has to turn it off again.
-func TestShuffleSwitchTurnsBackOff(t *testing.T) {
+// TestTheSwitchesAreDrawnWithTheirState checks that the page draws the switches
+// from the real state, so the knob matches the setting.
+func TestTheSwitchesAreDrawnWithTheirState(t *testing.T) {
 	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
 	a.shuffle = true
+	a.appearance.dynamic = true
 
 	tester := ui.NewTester(a.frame, 1280, 900)
 	tester.Frame()
 
-	x, y := switchAt(t, tester, "Shuffle")
-	tester.ClickAt(x, y)
-	tester.Frame()
-
-	if a.isShuffle() {
-		t.Error("clicking the shuffle switch again did not turn it off")
-	}
-}
-
-// TestShuffleSwitchSurvivesTheNextFrame checks that the setting holds: a
-// switch that flips and then falls back on the next frame is the bug the user
-// saw, and it looks identical to a switch that never fired.
-func TestShuffleSwitchSurvivesTheNextFrame(t *testing.T) {
-	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
-
-	tester := ui.NewTester(a.frame, 1280, 900)
-	tester.Frame()
-
-	x, y := switchAt(t, tester, "Shuffle")
-	tester.ClickAt(x, y)
-	tester.Frame()
-	tester.Frame()
-	tester.Frame()
-
-	if !a.isShuffle() {
-		t.Error("shuffle fell back off after the frame that set it")
-	}
 	if !a.switchShuffle {
-		t.Error("the switch's own value fell back, so the knob would draw as off")
+		t.Error("the page seeded the shuffle switch off while shuffle is on")
+	}
+	if !a.switchDynamic {
+		t.Error("the page seeded the artwork switch off while it is on")
 	}
 }

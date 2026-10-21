@@ -52,19 +52,32 @@ func (a *app) homeHero(c *ui.Context) {
 				Label("Playlist link").
 				Placeholder("https://music.youtube.com/playlist?list=…").
 				OnSubmit(func() { a.load() })
-			play := primaryButton(c, lucide.Play(), "Play")
+			box.Disabled(a.loading)
+
+			// One button, in one of two states. Building the first and then
+			// replacing the variable would leave both in the row: the element
+			// is already a child by the time it is reassigned.
 			if a.loading {
-				play = primaryButton(c, lucide.Play(), "Reading…")
-				play.Disabled(true)
-			}
-			if play.Clicked() {
+				busy := primaryButton(c, lucide.Play(), "Reading the playlist…")
+				busy.Disabled(true)
+			} else if play := primaryButton(c, lucide.Play(), "Play"); play.Clicked() {
 				a.load()
 			}
 		})
-		if a.status != "" {
+		// While a playlist is being read, one line under the field says so.
+		// The status line below is for what went wrong, so the two never both
+		// speak: a load in flight clears the status, and a failure stops the
+		// spinner.
+		if a.loading {
+			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+				components.Spinner(c, components.SpinnerSpokes).Size(t.Space(4), t.Space(4))
+				components.Text(c, "Reading the playlist. A long one takes a few seconds.").
+					FontSize(t.Rem(remCaption)).TextColor(s.muted())
+			})
+		} else if a.status != "" {
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				components.Icon(c, lucide.AudioLines()).Size(t.Space(4), t.Space(4)).
-					TextColor(s.accent())
+					TextColor(t.Danger)
 				components.Text(c, a.status).FontSize(t.Rem(remCaption)).
 					TextColor(t.Danger).MaxLines(2).Ellipsis("…")
 			})

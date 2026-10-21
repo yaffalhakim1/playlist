@@ -74,12 +74,21 @@ var (
 	motionPress = ui.ElementTransition{Colors: true, Duration: 120 * time.Millisecond}
 )
 
-// theme returns the theme of the window: Onevra's palette, with the accent
-// the user chose, in the app's typeface.
+// theme returns the theme of the window: a palette, with the accent the user
+// chose laid over it, in the app's typeface.
+//
+// The order matters. A palette sets the surfaces, the ink and its own accent;
+// a colour the user picked, or one taken from the artwork, then replaces the
+// accent alone. So the two settings compose: choose Violet, then take the
+// accent from the cover, and the app keeps Violet's surfaces with the cover's
+// colour on top.
 func (a *app) theme(c *ui.Context) *ui.Theme {
 	t := theme.Onevra(c)
 	if interReady {
 		t.Font = familySans
+	}
+	if p, ok := paletteByID(a.appearance.palette); ok {
+		p.tint(t)
 	}
 	accent := a.accentColor(t.Dark)
 	if accent == "" {

@@ -46,6 +46,8 @@ func (a *app) volumeBy(step float64) {
 	}
 	a.volume = volume
 	a.mu.Unlock()
-	a.engine.SetVolume(volume)
+	if a.engine != nil {
+		a.engine.SetVolume(volume)
+	}
 	a.rememberVolume(volume)
 }

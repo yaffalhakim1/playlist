@@ -193,7 +193,9 @@ func (a *app) volumeControl(c *ui.Context) {
 	slider := components.Slider(c, &a.volume, 0, 1)
 	slider.Width(t.Space(22)).Label("Volume")
 	if slider.Changed() {
-		a.engine.SetVolume(a.volume)
+		if a.engine != nil {
+			a.engine.SetVolume(a.volume)
+		}
 		a.rememberVolume(a.volume)
 	}
 }

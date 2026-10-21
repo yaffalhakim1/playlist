@@ -475,11 +475,41 @@ func (e *Engine) tick() {
 	if current == nil {
 		return
 	}
-	if state == StatePlaying && !current.Playing() && time.Since(started) > minPlayTime {
-		e.ended()
-		return
+	position := current.Position()
+	duration := current.Duration()
+
+	// A track has ended when the place in it reaches its length, not when the
+	// player stops reporting that it plays. That flag drops as the mixer
+	// reaches the end of what it has decoded — up to a second before the
+	// sound has left the speakers — and it also drops while the decoder waits
+	// on the network. Going by the flag cut the last second off every track
+	// and started the next one over it.
+	if state == StatePlaying && time.Since(started) > minPlayTime {
+		if duration > 0 && trackEnded(position, duration) {
+			e.ended()
+			return
+		}
+		// Without a length there is nothing to compare against, so the flag
+		// is all there is: it means the decoder reached its end.
+		if duration <= 0 && !current.Playing() && position > 0 {
+			e.ended()
+			return
+		}
 	}
-	e.emit(Event{Kind: KindPosition, Index: index, Position: current.Position(), Duration: current.Duration()})
+	e.emit(Event{Kind: KindPosition, Index: index, Position: position, Duration: duration})
+}
+
+// trackEnded tells whether a track at position has reached the end of its
+// duration.
+//
+// The tolerance is small on purpose: a quarter of a second of slack for the
+// place to run past the length as the buffer drains. Anything wider starts
+// cutting the last moments off a track, which is the bug this replaced.
+func trackEnded(position, duration time.Duration) bool {
+	if duration <= 0 {
+		return false
+	}
+	return position >= duration-100*time.Millisecond
 }
 
 // ended plays the next track when one ends.

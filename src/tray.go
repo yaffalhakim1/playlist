@@ -26,7 +26,7 @@ type tray struct {
 // newTray adds the icon to the notification area.
 func (a *app) newTray() {
 	t := &tray{app: a}
-	icon, err := trayIcon()
+	icon, err := trayIcon(false)
 	if err != nil {
 		return // no icon, no tray: the window simply closes as usual
 	}
@@ -98,7 +98,16 @@ func (t *tray) refresh(track music.Track, playing bool) {
 		return
 	}
 	tip := t.tooltip
-	go t.item.SetToolTip(tip)
+	icon, err := trayIcon(playing)
+	// The icon says whether the music runs, so it changes with the state.
+	// Both calls reach the desktop and may wait for it, so they go off the
+	// thread that draws.
+	go func() {
+		if err == nil {
+			_ = t.item.SetIcon(icon, false)
+		}
+		t.item.SetToolTip(tip)
+	}()
 	if t.menu == nil {
 		return
 	}
@@ -123,13 +132,24 @@ func tooltipFor(track music.Track, playing bool) string {
 	return "Playlist — " + track.Title
 }
 
-//go:embed assets/tray.png
-var trayMark []byte
+//go:embed assets/tray-playing.png
+var trayPlaying []byte
 
-// trayIcon returns the icon of the notification area: the app's mark, white
-// on transparent, so it reads on either desktop's tray.
+//go:embed assets/tray-paused.png
+var trayPaused []byte
+
+// trayIcon returns the icon of the notification area: the app's mark, white on
+// transparent, so it reads on either desktop's tray.
 //
-// The picture is rendered from the same geometry as logo/b-small.svg, at the
-// size the tray asks for. Drawing it in code would mean carrying a rasteriser
-// for two shapes.
-func trayIcon() ([]byte, error) { return trayMark, nil }
+// Playing and paused are two pictures of the same mark, the paused one dimmed.
+// A tray icon cannot animate on Windows or Linux, so swapping between two is
+// how it says whether the music runs.
+//
+// The pictures are rendered from the same geometry as logo/b-small.svg by
+// scripts/render-tray.ps1.
+func trayIcon(playing bool) ([]byte, error) {
+	if playing {
+		return trayPlaying, nil
+	}
+	return trayPaused, nil
+}

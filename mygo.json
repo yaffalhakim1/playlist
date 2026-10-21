@@ -1,6 +1,7 @@
 {
   "name": "Playlist",
   "identifier": "dev.yafit.playlist",
-  "version": "0.1.0",
-  "out": "build"
+  "version": "0.3.0",
+  "out": "build",
+  "icon": "resources/icon.png"
 }

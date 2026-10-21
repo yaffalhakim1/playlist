@@ -262,7 +262,7 @@ func (a *app) deletePlaylist(link string) {
 	}
 
 	a.mu.Lock()
-	wasOpen := a.link == link
+	wasOpen := a.openLink == link
 	if wasOpen {
 		// The playlist that was open is gone, so nothing plays and the page
 		// goes home rather than showing a playlist that no longer exists.
@@ -273,6 +273,7 @@ func (a *app) deletePlaylist(link string) {
 		a.position = 0
 		a.duration = 0
 		a.link = ""
+		a.openLink = ""
 		a.page = pageHome
 	}
 	a.mu.Unlock()

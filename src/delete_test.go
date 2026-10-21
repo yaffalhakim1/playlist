@@ -82,6 +82,7 @@ func TestDeletingTheOpenPlaylistGoesHome(t *testing.T) {
 	a := &app{art: newArtwork(), current: 0, page: pagePlaylist, store: openStore(t)}
 	list := samplePlaylist()
 	a.link = "link-a"
+	a.openLink = "link-a"
 	a.playlist = &list
 	a.queue = list.Tracks
 	a.visible = visibleTracks(list.Tracks, "")
@@ -97,8 +98,8 @@ func TestDeletingTheOpenPlaylistGoesHome(t *testing.T) {
 	if len(a.queue) != 0 {
 		t.Errorf("the queue still holds %d tracks", len(a.queue))
 	}
-	if a.link != "" {
-		t.Errorf("the link field still holds %q", a.link)
+	if a.openLink != "" {
+		t.Errorf("the open link still holds %q", a.openLink)
 	}
 	if a.current != -1 {
 		t.Errorf("the current track is %d, not -1", a.current)
@@ -111,6 +112,7 @@ func TestDeletingAnotherPlaylistLeavesThePageAlone(t *testing.T) {
 	a := &app{art: newArtwork(), current: 0, page: pagePlaylist, store: openStore(t)}
 	list := samplePlaylist()
 	a.link = "link-open"
+	a.openLink = "link-open"
 	a.playlist = &list
 	a.queue = list.Tracks
 
@@ -122,8 +124,8 @@ func TestDeletingAnotherPlaylistLeavesThePageAlone(t *testing.T) {
 	if a.playlist == nil {
 		t.Error("the playlist on screen was cleared by deleting another")
 	}
-	if a.link != "link-open" {
-		t.Errorf("the link field changed to %q", a.link)
+	if a.openLink != "link-open" {
+		t.Errorf("the open link changed to %q", a.openLink)
 	}
 }
 

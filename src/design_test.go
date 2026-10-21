@@ -210,6 +210,7 @@ func TestPagesUseTheThemeColours(t *testing.T) {
 	allowed := map[string]bool{
 		"theme.go":           true,
 		"color.go":           true,
+		"palettes.go":        true, // the Material 3 schemes are defined here
 		"page_appearance.go": true,
 	}
 	for _, file := range sourceFiles(t) {

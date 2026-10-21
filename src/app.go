@@ -71,6 +71,9 @@ type app struct {
 	visible  []int
 	status   string
 	loading  bool
+	// openLink is the address of the playlist that is open, which is not the
+	// one in the field: the field is cleared once a playlist opens.
+	openLink string
 
 	current   int
 	position  time.Duration
@@ -95,6 +98,10 @@ type app struct {
 	// deleting is the playlist waiting to be deleted, if any.
 	deleting pendingDelete
 
+	// followedTrack is the track the Up next list was last scrolled to, so it
+	// follows the music without fighting the reader's own scrolling.
+	followedTrack int
+
 	recents []library.Recent
 	art     *artwork
 
@@ -118,10 +125,12 @@ type appearance struct {
 	// mode is "system", "light" or "dark".
 	mode string
 	// accent is the colour of the accent, as a hex string, empty for the
-	// colour of the design.
+	// colour of the palette.
 	accent string
 	// dynamic takes the colour from the artwork of the track that plays.
 	dynamic bool
+	// palette is the id of the colour scheme, empty for Onevra's own.
+	palette string
 }
 
 // Run opens the window and runs the app until it closes.
@@ -148,8 +157,8 @@ func (a *app) setup() {
 			a.volume = store.Volume()
 			a.shuffle = store.Shuffle()
 			a.repeat = repeatByName(store.Repeat())
-			mode, accent, dynamic := store.Appearance()
-			a.appearance = appearance{mode: mode, accent: accent, dynamic: dynamic}
+			mode, accent, dynamic, palette := store.Appearance()
+			a.appearance = appearance{mode: mode, accent: accent, dynamic: dynamic, palette: palette}
 		}
 	}
 	if a.appearance.mode == "" {
@@ -250,6 +259,7 @@ func (a *app) restoredState() (restored, bool) {
 	}
 
 	a.link = session.Link
+	a.openLink = session.Link
 	a.playlist = &list
 	a.queue = list.Tracks
 	a.visible = visibleTracks(list.Tracks, "")
@@ -367,12 +377,12 @@ func (a *app) trackLocked() music.Track {
 // changes: a second of the place in a track is worth keeping, five writes a
 // second is not.
 func (a *app) saveSessionLocked() {
-	if a.store == nil || a.link == "" {
+	if a.store == nil || a.openLink == "" {
 		return
 	}
 	track := a.trackLocked()
 	a.store.SetSession(library.Session{
-		Link:     a.link,
+		Link:     a.openLink,
 		TrackID:  track.ID,
 		Position: a.position,
 	})
@@ -433,7 +443,9 @@ func (a *app) load() {
 
 	a.mu.Lock()
 	a.loading = true
-	a.status = "Reading the playlist…"
+	// The spinner says a load is running, so the status line is cleared: it is
+	// for what went wrong, and the two would otherwise both speak.
+	a.status = ""
 	a.generation++
 	generation := a.generation
 	a.mu.Unlock()
@@ -475,6 +487,10 @@ func (a *app) showPlaylist(link string, list music.Playlist) {
 	a.current = 0
 	a.position = 0
 	a.page = pagePlaylist
+	// The form did its job, so it is cleared: the link is in the sidebar now,
+	// and leaving it in the field invites pasting it again.
+	a.link = ""
+	a.openLink = link
 	a.mu.Unlock()
 
 	if a.engine != nil {
@@ -485,10 +501,25 @@ func (a *app) showPlaylist(link string, list music.Playlist) {
 		a.store.CachePlaylist(link, list)
 		a.recents = a.store.Recents()
 	}
-	a.rememberSession()
+	// The session is written with the link the playlist was read from, which
+	// the field no longer holds.
+	a.rememberSessionFor(link)
 	if len(list.Tracks) > 0 {
 		a.play(0)
 	}
+}
+
+// rememberSessionFor keeps the session for a link, which is not necessarily the
+// one in the field: the field is cleared once a playlist opens.
+func (a *app) rememberSessionFor(link string) {
+	if a.store == nil || link == "" {
+		return
+	}
+	a.mu.Lock()
+	track := a.trackLocked()
+	position := a.position
+	a.mu.Unlock()
+	a.store.SetSession(library.Session{Link: link, TrackID: track.ID, Position: position})
 }
 
 // visibleTracks returns the places of the tracks whose title or artist holds

@@ -72,6 +72,7 @@ type Data struct {
 	Mode    string   `json:"mode"`
 	Accent  string   `json:"accent"`
 	Dynamic bool     `json:"dynamic"`
+	Palette string   `json:"palette"`
 }
 
 // maxRecents is how many playlists are remembered.
@@ -319,18 +320,19 @@ func (s *Store) ClearPlays() {
 }
 
 // Appearance returns what the user chose about the look of the app.
-func (s *Store) Appearance() (mode, accent string, dynamic bool) {
+func (s *Store) Appearance() (mode, accent string, dynamic bool, palette string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.data.Mode, s.data.Accent, s.data.Dynamic
+	return s.data.Mode, s.data.Accent, s.data.Dynamic, s.data.Palette
 }
 
 // SetAppearance remembers what the user chose about the look of the app.
-func (s *Store) SetAppearance(mode, accent string, dynamic bool) {
+func (s *Store) SetAppearance(mode, accent string, dynamic bool, palette string) {
 	s.mu.Lock()
 	s.data.Mode = mode
 	s.data.Accent = accent
 	s.data.Dynamic = dynamic
+	s.data.Palette = palette
 	s.mu.Unlock()
 	s.save()
 }

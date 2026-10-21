@@ -5,7 +5,6 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
-	"github.com/oneo-me/onevra/source/theme"
 )
 
 // accents are the colours the accent may take.
@@ -54,13 +53,18 @@ func (a *app) appearancePage(c *ui.Context) {
 					}
 				})
 				hairline(c)
-				setting(c, "Colour", "Every colour in the app grows from this one.", nil)
-				ui.Row(c).Gap(t.Space(1)).Children(func() {
-					// The first swatch is the colour of the design itself, not
-					// the one laid over it, so a choice once made can be
-					// unmade.
-					base := theme.Palette(t.Dark)
-					a.accentSwatch(c, "", "Default", base.Accent, base.AccentText)
+				setting(c, "Palette", "A Material 3 colour scheme. Every surface, line and accent follows it.", nil)
+				ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
+					for _, p := range palettes {
+						a.paletteSwatch(c, p)
+					}
+				})
+				hairline(c)
+				setting(c, "Accent", "A colour laid over the palette's own.", nil)
+				ui.Row(c).Gap(t.Space(1)).Wrap().Children(func() {
+					// The first swatch is the palette's own accent, not one laid
+					// over it, so a choice once made can be unmade.
+					a.accentSwatch(c, "", "Palette", a.paletteAccent(t), t.AccentText)
 					for _, accent := range accents {
 						a.accentSwatch(c, accent, "", ui.Hex(accent), ui.Hex(markOn(accent)))
 					}
@@ -121,6 +125,69 @@ func (a *app) switchSetting(c *ui.Context, field *bool, label string) {
 // The chosen one carries a check rather than a ring: a ring would fight the
 // swatch's own edge, and the mark has to read on any colour. An empty accent
 // is the theme's own, which is what the app shows before the user picks one.
+// paletteSwatch draws one of the Material 3 schemes: a tile in the palette's
+// own surface with a disc of its accent on it, so the swatch shows the scheme
+// rather than only its colour.
+func (a *app) paletteSwatch(c *ui.Context, p palette) {
+	t := c.Theme()
+	chosen := a.appearance.palette == p.id
+	s := p.light
+	if t.Dark {
+		s = p.dark
+	}
+	key := "palette-" + p.id
+	if p.id == "" {
+		key = "palette-default"
+	}
+	button := ui.ButtonBase(c).Key(key).Size(t.Space(13), t.Space(9)).
+		Center().Radius(radiusControl(t)).Label("Palette " + p.name).
+		Transition(motionPress)
+	if button.Hovered() {
+		button.Background(surface(c).card())
+	}
+	button.Children(func() {
+		tile := ui.Box(c).Size(t.Space(9), t.Space(7)).Radius(radiusControl(t)).
+			Background(ui.Hex(s.surface)).Center()
+		tile.Border(1, ui.Hex(s.text).Alpha(0.14))
+		tile.Children(func() {
+			ui.Box(c).Size(t.Space(4), t.Space(4)).Radius(radiusPill(t)).
+				Background(ui.Hex(s.accent))
+		})
+	})
+	if button.Clicked() {
+		a.setPalette(p.id)
+	}
+	// A chosen tile is marked by a ring in the palette's own accent, which
+	// reads on the tile's surface whatever colour the scheme is.
+	if chosen {
+		button.Border(2, ui.Hex(s.accent))
+	}
+}
+
+// paletteAccent returns the accent of the palette in use, which is what the
+// first accent swatch offers as "the palette's own".
+func (a *app) paletteAccent(t *ui.Theme) ui.Color {
+	if p, ok := paletteByID(a.appearance.palette); ok {
+		if t.Dark {
+			return ui.Hex(p.dark.accent)
+		}
+		return ui.Hex(p.light.accent)
+	}
+	return t.Accent
+}
+
+// setPalette keeps the Material 3 scheme the user chose.
+//
+// A palette brings its own accent, so the colour laid over it is cleared: two
+// settings deciding the same thing is how a colour picker starts fighting
+// itself.
+func (a *app) setPalette(id string) {
+	a.appearance.palette = id
+	a.appearance.accent = ""
+	a.appearance.dynamic = false
+	a.rememberAppearance()
+}
+
 func (a *app) accentSwatch(c *ui.Context, accent, name string, colour ui.Color, mark ui.Color) {
 	t := c.Theme()
 	chosen := a.appearance.accent == accent
@@ -199,5 +266,5 @@ func (a *app) rememberAppearance() {
 	if mode == "" {
 		mode = "system"
 	}
-	a.store.SetAppearance(mode, a.appearance.accent, a.appearance.dynamic)
+	a.store.SetAppearance(mode, a.appearance.accent, a.appearance.dynamic, a.appearance.palette)
 }
