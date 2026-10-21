@@ -1,16 +1,29 @@
 name: Release
 
-# Builds the app for every desktop it runs on and attaches the archives to a
-# GitHub Release, so a version can be downloaded rather than built.
+# Builds the app for every desktop it runs on and attaches the installers to a
+# GitHub Release, so a version can be installed rather than built.
 #
-# Trigger it by pushing a tag, as v0.2.0, or by hand from the Actions tab.
+# The build is `mygo build`, not `go build`. That is the whole difference
+# between an app and an executable:
+#
+#   - it links Windows with `-H=windowsgui`, so no console window opens beside
+#     the app, and embeds the icon resource the taskbar reads;
+#   - it wraps macOS in a .app bundle with its .icns, and makes the disk image;
+#   - it makes the NSIS installer, the Debian package and install.sh.
+#
+# A plain `go build` produces a console-subsystem executable with no icon
+# resources, which is what shipped before: a terminal beside the window and a
+# blank taskbar icon.
+#
+# Trigger it by pushing a tag, as v0.4.0, or by hand from the Actions tab.
+
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to publish, as v0.2.0"
+        description: "Tag to publish, as v0.4.0"
         required: true
         type: string
 
@@ -27,32 +40,24 @@ jobs:
     runs-on: ${{ matrix.os }}
     # A runner that never picks the job up should fail it, not hold the release
     # open for hours. This is what a retired runner label did once.
-    timeout-minutes: 20
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: windows-amd64
             os: windows-latest
-            goos: windows
-            goarch: amd64
-            archive: playlist-windows-amd64.zip
+            platform: windows/amd64
           - name: macos-arm64
             os: macos-latest
-            goos: darwin
-            goarch: arm64
-            archive: playlist-macos-arm64.zip
+            platform: darwin/arm64
           - name: macos-amd64
             # macos-13 was retired; 15 is the oldest Intel image still served.
             os: macos-15-intel
-            goos: darwin
-            goarch: amd64
-            archive: playlist-macos-amd64.zip
+            platform: darwin/amd64
           - name: linux-amd64
             os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            archive: playlist-linux-amd64.tar.gz
+            platform: linux/amd64
 
     steps:
       - uses: actions/checkout@v4
@@ -63,55 +68,52 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Build
-        shell: bash
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "0"
-        run: |
-          go build -trimpath \
-            -ldflags "-s -w -X main.version=${{ github.ref_name }}" \
-            -o playlist${{ matrix.goos == 'windows' && '.exe' || '' }} .
-
       # The tests need the desktop's audio stack and the tools the app leans
       # on, so they run once, on Linux, rather than in every matrix leg.
       - name: Test
         if: matrix.name == 'linux-amd64'
         run: go test ./...
 
-      - name: Package (Windows)
-        if: matrix.goos == 'windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item playlist.exe dist/
-          Copy-Item README.md dist/ -ErrorAction SilentlyContinue
-          Compress-Archive -Path dist/* -DestinationPath ${{ matrix.archive }} -Force
-
-      - name: Package (macOS)
-        if: matrix.goos == 'darwin'
+      # The version in the installer, the disk image and the version resource
+      # of the executable is mygo.json's, so the tag has to agree with it.
+      # Otherwise the release is named v0.5.0 and its files say 0.4.0.
+      - name: Check the version matches the tag
+        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
-          mkdir -p dist
-          cp playlist dist/
-          cp README.md LICENSE* dist/ 2>/dev/null || true
-          cd dist && zip -r ../${{ matrix.archive }} .
+          want="${GITHUB_REF_NAME#v}"
+          got="$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' mygo.json |
+            sed 's/.*"\([^"]*\)"$/\1/')"
+          if [ "$want" != "$got" ]; then
+            echo "the tag says $want but mygo.json says $got" >&2
+            exit 1
+          fi
 
-      - name: Package (Linux)
-        if: matrix.goos == 'linux'
+      - name: Build
+        shell: bash
+        run: go tool mygo build -platform "${{ matrix.platform }}" -o dist
+
+      - name: Collect the installers
         shell: bash
         run: |
-          mkdir -p dist
-          cp playlist dist/
-          cp README.md LICENSE* dist/ 2>/dev/null || true
-          tar -czf ${{ matrix.archive }} -C dist .
+          mkdir -p out
+          # The installers, not the archives: what a person double-clicks.
+          find dist -type f \( \
+            -name '*.exe' -o \
+            -name '*.dmg' -o \
+            -name '*.deb' \) -exec cp {} out/ \;
+          # The Linux tarball and its install.sh, for the machines a .deb does
+          # not fit.
+          find dist -type f \( \
+            -name '*.tar.gz' -o \
+            -name 'install.sh' \) -exec cp {} out/ \;
+          ls -la out
 
-      - name: Upload the archive
+      - name: Upload the installers
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.archive }}
-          path: ${{ matrix.archive }}
+          name: ${{ matrix.name }}
+          path: out/*
           if-no-files-found: error
 
   release:
@@ -121,7 +123,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download the archives
+      - name: Download the installers
         uses: actions/download-artifact@v4
         with:
           path: dist
@@ -133,14 +135,20 @@ jobs:
           A native desktop player for YouTube playlists. Paste a link, and it plays
           the music of it.
 
-          ## Download
+          ## Install
 
-          | Your machine | File |
-          |---|---|
-          | Windows | `playlist-windows-amd64.zip` |
-          | macOS, Apple silicon | `playlist-macos-arm64.zip` |
-          | macOS, Intel | `playlist-macos-amd64.zip` |
-          | Linux | `playlist-linux-amd64.tar.gz` |
+          | Your machine | File | How |
+          |---|---|---|
+          | Windows | `Playlist Setup <version> amd64.exe` | Run it. It installs Playlist, and no terminal opens. |
+          | Windows, no install | `Playlist.exe` | The same app, portable. Put it anywhere and run it. |
+          | macOS, Apple silicon | `Playlist <version> arm64.dmg` | Open it, drag Playlist to Applications. |
+          | macOS, Intel | `Playlist <version> amd64.dmg` | The same. |
+          | Debian, Ubuntu | `playlist_<version>_amd64.deb` | `sudo dpkg -i` it, or install from your file manager. |
+          | Other Linux | `playlist-<version>-linux-amd64.tar.gz` | Unpack it, then run `./install.sh`. |
+
+          The macOS builds are ad-hoc signed, not notarized, so the first launch
+          needs right-click, Open. That is the price of shipping without a paid
+          Apple developer account.
 
           ## Before it will play
 
@@ -159,6 +167,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
+          # The version in the file names is the one in mygo.json, so the notes
+          # can name the files exactly.
+          VERSION="${TAG#v}"
+          sed -i "s/<version>/$VERSION/g" notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else

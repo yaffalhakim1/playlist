@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"youtube-playlist/internal/music"
+	"youtube-playlist/internal/proc"
 )
 
 // userAgent is the browser the web app pretends to be.
@@ -129,6 +130,9 @@ func (r *Resolver) resolve(ctx context.Context, videoID string) (string, error) 
 // run runs yt-dlp and returns what it printed.
 func run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	// Without this, Windows opens a console window for yt-dlp, which the user
+	// sees flash beside the player on every track.
+	proc.Hide(cmd)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

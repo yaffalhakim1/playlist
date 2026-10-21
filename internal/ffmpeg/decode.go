@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"youtube-playlist/internal/proc"
 )
 
 const (
@@ -223,6 +225,9 @@ func (p *PCM) start(at time.Duration) error {
 	)
 
 	cmd := exec.CommandContext(p.ctx, "ffmpeg", args...)
+	// ffmpeg is a console program: without this, Windows opens a window for it
+	// every time a track starts.
+	proc.Hide(cmd)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.StdoutPipe()

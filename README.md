@@ -56,6 +56,10 @@ go tool mygo dev      # runs the app, rebuilding on every change
 go tool mygo build    # packages the app in build/
 ```
 
+Build with `mygo build`, not `go build`: the MyGo build is what makes a Windows
+executable a GUI app with an icon and an installer, rather than a console
+program with neither. `docs/shipping.md` says what each one produces.
+
 ## Layout
 
 ```

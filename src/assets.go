@@ -44,3 +44,15 @@ func registerInter() {
 	}
 	interReady = true
 }
+
+// appIcon is the app's mark, the same drawing mygo build embeds in the
+// executable.
+//
+// It is embedded here as well so the window can set it while it runs: the
+// taskbar reads the icon of the window, and the one in the executable's
+// resources is only read when nothing else has claimed it. Setting it makes the
+// taskbar right even when the app was started in a way that skipped the
+// resources, as `go run` and the dev server do.
+//
+//go:embed assets/app-icon.png
+var appIcon []byte

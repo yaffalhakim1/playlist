@@ -200,6 +200,11 @@ func (a *app) setup() {
 		LeftMaxWidth: 320,
 	})
 	a.win = shell.Window()
+	// The window owns the taskbar icon: set it here rather than trusting the
+	// executable's resources, which a dev build does not have.
+	if err := a.win.SetIcon(appIcon); err != nil {
+		log.Printf("icon: the taskbar keeps the executable's: %v", err)
+	}
 	a.win.OnClose(func(e *mygo.CloseEvent) {
 		// The music goes on: the window hides, and the icon in the
 		// notification area brings it back.
