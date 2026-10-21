@@ -135,6 +135,25 @@ jobs:
           A native desktop player for YouTube playlists. Paste a link, and it plays
           the music of it.
 
+          ## What's new in 0.6.0
+
+          **Last.fm scrobbling.** Connect your account in **Look → Last.fm** and the
+          track you play goes to your profile: what is playing now, and a scrobble
+          once you have heard half of it, or four minutes, whichever comes first.
+          Tracks of thirty seconds or less are never scrobbled.
+
+          The count comes from the player's position, not the clock, so holding a
+          track, a buffering stall, or dragging the seek bar forward does not
+          scrobble it.
+
+          Plays that cannot be sent wait on disk and go out when the network is
+          back, oldest first. Nothing is lost to a restart or a night offline.
+
+          Last.fm issues an API key per application, so the app asks for yours: make
+          one at last.fm/api/account/create, paste the key and secret into the Look
+          page, then Connect. Your browser opens Last.fm's own page, and the app
+          never sees your password. `docs/lastfm.md` has the details.
+
           ## Install
 
           | Your machine | File | How |
