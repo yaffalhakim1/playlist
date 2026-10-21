@@ -27,6 +27,12 @@ var accents = []string{
 // app has one grid, and settings are not a screen of their own.
 func (a *app) appearancePage(c *ui.Context) {
 	t := c.Theme()
+	// The switches are bound to these fields for the frame, because a switch
+	// flips the value it is given as it is built. They are seeded from the
+	// real state here, before anything is drawn, and read back after.
+	a.switchShuffle = a.isShuffle()
+	a.switchDynamic = a.appearance.dynamic
+
 	a.pageFrame(c, true, func() {
 		ui.Column(c).FillWidth().Gap(t.Space(6)).Children(func() {
 			pageHead(c, "Look", "The theme, the colour it grows from, and how the queue plays.", nil)
@@ -62,12 +68,7 @@ func (a *app) appearancePage(c *ui.Context) {
 				hairline(c)
 				setting(c, "Colour from artwork",
 					"Take the accent from the cover of the track that plays.", func() {
-						dynamic := a.appearance.dynamic
-						toggle := components.Switch(c, &dynamic, "Colour from artwork",
-							components.SwitchOptions{HideLabel: true})
-						if toggle.Changed() {
-							a.setDynamic(dynamic)
-						}
+						a.switchSetting(c, &a.switchDynamic, "Colour from artwork")
 					})
 			})
 
@@ -83,19 +84,39 @@ func (a *app) appearancePage(c *ui.Context) {
 				})
 				hairline(c)
 				setting(c, "Shuffle", "Play the queue in a random order.", func() {
-					shuffle := a.isShuffle()
-					toggle := components.Switch(c, &shuffle, "Shuffle",
-						components.SwitchOptions{HideLabel: true})
-					if toggle.Changed() {
-						a.setShuffle(shuffle)
-					}
+					a.switchSetting(c, &a.switchShuffle, "Shuffle")
 				})
 			})
 		})
 	})
+
+	// Read the switches back: a switch flips its own field as it is built, so
+	// what it holds now is what the user chose.
+	if a.switchDynamic != a.appearance.dynamic {
+		a.setDynamic(a.switchDynamic)
+	}
+	if a.switchShuffle != a.isShuffle() {
+		a.setShuffle(a.switchShuffle)
+	}
 }
 
-// accentSwatch draws one of the colours the accent may take.
+// switchSetting draws a switch bound to a setting, and reports whether the user
+// turned it in this frame.
+//
+// This is subtler than it looks, and the obvious version does not work.
+// components.Switch binds its own bool and flips it when clicked; it reports
+// nothing back, and the row it returns never reports a change, because the
+// switch inside it does. Worse, MyGo applies a toggle's input as the control
+// is built, so the bool has already been flipped by the time Switch returns:
+// comparing it with what was passed in is always equal, and the setting never
+// changes.
+//
+// So the value lives on the app, the switch is handed a pointer to it, and the
+// caller reads the field back once the frame has drawn. A click moves the
+// field; nothing else does.
+func (a *app) switchSetting(c *ui.Context, field *bool, label string) {
+	components.Switch(c, field, label, components.SwitchOptions{HideLabel: true})
+}
 //
 // The chosen one carries a check rather than a ring: a ring would fight the
 // swatch's own edge, and the mark has to read on any colour. An empty accent

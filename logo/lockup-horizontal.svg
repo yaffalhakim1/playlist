@@ -1,0 +1,31 @@
+<svg width="820" height="256" viewBox="0 0 820 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Playlist</title>
+  <!-- Horizontal lockup: the mark, then the name.
+
+       The symbol is 168 tall and the name is set at 84, which is half the
+       symbol's height — the ratio at which a wordmark reads as a caption to
+       the mark rather than competing with it. The gap is 0.28 of the symbol's
+       height, tight enough to read as one object.
+
+       The name is Inter SemiBold, tracked -2.4 at this size, which is the
+       same tracking the app uses for its display type. -->
+  <g transform="translate(18 44) scale(0.656)">
+    <g transform="translate(-31.16 -12.99) scale(1.101)">
+      <path d="M 51 70 H 126 A 29 29 0 0 1 126 128 H 90 A 29 29 0 0 0 90 186 H 155"
+            stroke="#000000" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M 177 84
+               Q 177 74 187 74
+               L 192 74
+               Q 198 74 204 79
+               L 242 122
+               Q 248 128 242 134
+               L 204 177
+               Q 198 182 192 182
+               L 187 182
+               Q 177 182 177 172
+               Z" fill="#000000"/>
+    </g>
+  </g>
+  <text x="222" y="152" font-family="Inter, Segoe UI, sans-serif" font-size="84"
+        font-weight="600" letter-spacing="-2.4" fill="#000000">Playlist</text>
+</svg>

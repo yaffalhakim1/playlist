@@ -1,10 +1,7 @@
 package src
 
 import (
-	"bytes"
-	"image"
-	"image/color"
-	"image/png"
+	_ "embed"
 
 	"github.com/egoist/mygo"
 
@@ -126,42 +123,13 @@ func tooltipFor(track music.Track, playing bool) string {
 	return "Playlist — " + track.Title
 }
 
-// trayIcon draws the icon of the notification area: a note on a rounded
-// square, in white, so it reads on either desktop.
-func trayIcon() ([]byte, error) {
-	const size = 32
-	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	white := color.RGBA{255, 255, 255, 255}
-	// The stem of the note.
-	for y := 8; y < 22; y++ {
-		for x := 17; x < 20; x++ {
-			img.Set(x, y, white)
-		}
-	}
-	// The flag of the note.
-	for y := 8; y < 13; y++ {
-		for x := 19; x < 25; x++ {
-			img.Set(x, y, white)
-		}
-	}
-	// The two heads of the note.
-	fillCircle(img, 14, 22, 4, white)
-	fillCircle(img, 22, 20, 4, white)
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
+//go:embed assets/tray.png
+var trayMark []byte
 
-// fillCircle paints a disc.
-func fillCircle(img *image.RGBA, cx, cy, r int, c color.RGBA) {
-	for y := cy - r; y <= cy+r; y++ {
-		for x := cx - r; x <= cx+r; x++ {
-			dx, dy := x-cx, y-cy
-			if dx*dx+dy*dy <= r*r {
-				img.Set(x, y, c)
-			}
-		}
-	}
-}
+// trayIcon returns the icon of the notification area: the app's mark, white
+// on transparent, so it reads on either desktop's tray.
+//
+// The picture is rendered from the same geometry as logo/b-small.svg, at the
+// size the tray asks for. Drawing it in code would mean carrying a rasteriser
+// for two shapes.
+func trayIcon() ([]byte, error) { return trayMark, nil }

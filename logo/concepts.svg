@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1600" height="984" viewBox="0 0 1600 984"><defs><filter id="grey"><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="1600" height="984" fill="#f7f7f4"/><text x="60" y="78" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="40" font-weight="700" fill="#161616">Logo concepts</text><text x="60" y="116" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" fill="#6b6b6b">Concepts for review — pick a direction (or tell me what you like in each).</text><rect x="60" y="150" width="474.667" height="774" rx="18" fill="#fff" stroke="#161616" stroke-width="2"/><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="90" y="190" width="414.667" height="300" preserveAspectRatio="xMidYMid meet">
+  <title>Playlist — P with a play counter</title>
+  <!-- The P is one solid silhouette. Its counter is not a round hole but a
+       play mark, cut out of it: the letter and the action share one shape.
+
+       Geometry, on a 256 grid:
+       · stem 62 wide, from y=30 to y=236
+       · bowl: a half-round from the stem to x=200, closed at y=140
+       · counter: a triangle with a vertical back at x=112, apex at (176,84)
+         its two slanted edges set at exactly 30°, so no edge is a near-miss
+       · the whole mark is nudged up 4 so it sits on the optical centre -->
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000"
+        d="M 62 232 V 26 H 146 A 57 57 0 0 1 146 140 H 100 V 232 Z
+           M 112 54 L 112 110 L 160 82 Z"/>
+</svg>
+</g><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 256" x="90" y="514" width="414.667" height="120" preserveAspectRatio="xMidYMid meet">
+  <title>Playlist — horizontal lockup</title>
+  <!-- Symbol at 176 tall, then the name set in Inter SemiBold, baseline on
+       the symbol's own optical baseline. The gap is 0.42 of the symbol's
+       height, which is the space that reads as one object rather than two. -->
+  <g transform="translate(30, 40) scale(0.69)">
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000"
+          d="M 62 232 V 26 H 146 A 57 57 0 0 1 146 140 H 100 V 232 Z
+             M 112 54 L 112 110 L 160 82 Z"/>
+  </g>
+  <text x="212" y="163" font-family="Inter, Segoe UI, sans-serif" font-size="86"
+        font-weight="600" letter-spacing="-2.4" fill="#000000">Playlist</text>
+</svg>
+</g><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="90" y="660" width="64" height="64" preserveAspectRatio="xMidYMid meet">
+  <title>Playlist — P with a play counter</title>
+  <!-- The P is one solid silhouette. Its counter is not a round hole but a
+       play mark, cut out of it: the letter and the action share one shape.
+
+       Geometry, on a 256 grid:
+       · stem 62 wide, from y=30 to y=236
+       · bowl: a half-round from the stem to x=200, closed at y=140
+       · counter: a triangle with a vertical back at x=112, apex at (176,84)
+         its two slanted edges set at exactly 30°, so no edge is a near-miss
+       · the whole mark is nudged up 4 so it sits on the optical centre -->
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000"
+        d="M 62 232 V 26 H 146 A 57 57 0 0 1 146 140 H 100 V 232 Z
+           M 112 54 L 112 110 L 160 82 Z"/>
+</svg>
+</g><text x="122" y="744" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a8a" text-anchor="middle">64px</text><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="180" y="692" width="32" height="32" preserveAspectRatio="xMidYMid meet">
+  <title>Playlist — P with a play counter</title>
+  <!-- The P is one solid silhouette. Its counter is not a round hole but a
+       play mark, cut out of it: the letter and the action share one shape.
+
+       Geometry, on a 256 grid:
+       · stem 62 wide, from y=30 to y=236
+       · bowl: a half-round from the stem to x=200, closed at y=140
+       · counter: a triangle with a vertical back at x=112, apex at (176,84)
+         its two slanted edges set at exactly 30°, so no edge is a near-miss
+       · the whole mark is nudged up 4 so it sits on the optical centre -->
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000"
+        d="M 62 232 V 26 H 146 A 57 57 0 0 1 146 140 H 100 V 232 Z
+           M 112 54 L 112 110 L 160 82 Z"/>
+</svg>
+</g><text x="196" y="744" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a8a" text-anchor="middle">32px</text><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="238" y="708" width="16" height="16" preserveAspectRatio="xMidYMid meet">
+  <title>Playlist — P with a play counter</title>
+  <!-- The P is one solid silhouette. Its counter is not a round hole but a
+       play mark, cut out of it: the letter and the action share one shape.
+
+       Geometry, on a 256 grid:
+       · stem 62 wide, from y=30 to y=236
+       · bowl: a half-round from the stem to x=200, closed at y=140
+       · counter: a triangle with a vertical back at x=112, apex at (176,84)
+         its two slanted edges set at exactly 30°, so no edge is a near-miss
+       · the whole mark is nudged up 4 so it sits on the optical centre -->
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000"
+        d="M 62 232 V 26 H 146 A 57 57 0 0 1 146 140 H 100 V 232 Z
+           M 112 54 L 112 110 L 160 82 Z"/>
+</svg>
+</g><text x="246" y="744" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a8a" text-anchor="middle">16px</text><text x="90.0" y="780" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#161616">A · P / Play</text><text x="90.0" y="808" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#161616" letter-spacing="1.5">RECOMMENDED</text><text x="90.0" y="842" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="19" fill="#555">The P&#x27;s counter is the play mark: letter</text><text x="90.0" y="868" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="19" fill="#555">and action are one shape.</text><rect x="562.667" y="150" width="474.667" height="774" rx="18" fill="#fff" stroke="#e4e4e0" stroke-width="1"/><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="592.667" y="190" width="414.667" height="300" preserveAspectRatio="xMidYMid meet">
+  <!-- A — Ribbon Queue, v2.
+       A queue read left to right: two runs joined by one turn, the second
+       run ending in a play apex. One band, three moves, no closed shape.
+       Geometry on a 256 grid, stroke 28, radius 30 = 4x the turn's centre. -->
+  <path d="M 56 72 H 156 A 32 32 0 0 1 156 136 H 100 A 32 32 0 0 0 100 200 H 148"
+        stroke="#000000" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 148 170 L 148 230 L 204 200 Z" fill="#000000"/>
+</svg>
+</g><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 256" x="592.667" y="514" width="414.667" height="120" preserveAspectRatio="xMidYMid meet">
+  <title>Playlist — horizontal lockup</title>
+  <!-- Symbol at 176 tall, then the name set in Inter SemiBold, baseline on
+       the symbol's own optical baseline. The gap is 0.42 of the symbol's
+       height, which is the space that reads as one object rather than two. -->
+  <g transform="translate(30, 40) scale(0.69)">
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000"
+          d="M 62 232 V 26 H 146 A 57 57 0 0 1 146 140 H 100 V 232 Z
+             M 112 54 L 112 110 L 160 82 Z"/>
+  </g>
+  <text x="212" y="163" font-family="Inter, Segoe UI, sans-serif" font-size="86"
+        font-weight="600" letter-spacing="-2.4" fill="#000000">Playlist</text>
+</svg>
+</g><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="592.667" y="660" width="64" height="64" preserveAspectRatio="xMidYMid meet">
+  <!-- A — Ribbon Queue, v2.
+       A queue read left to right: two runs joined by one turn, the second
+       run ending in a play apex. One band, three moves, no closed shape.
+       Geometry on a 256 grid, stroke 28, radius 30 = 4x the turn's centre. -->
+  <path d="M 56 72 H 156 A 32 32 0 0 1 156 136 H 100 A 32 32 0 0 0 100 200 H 148"
+        stroke="#000000" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 148 170 L 148 230 L 204 200 Z" fill="#000000"/>
+</svg>
+</g><text x="624.667" y="744" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a8a" text-anchor="middle">64px</text><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="682.667" y="692" width="32" height="32" preserveAspectRatio="xMidYMid meet">
+  <!-- A — Ribbon Queue, v2.
+       A queue read left to right: two runs joined by one turn, the second
+       run ending in a play apex. One band, three moves, no closed shape.
+       Geometry on a 256 grid, stroke 28, radius 30 = 4x the turn's centre. -->
+  <path d="M 56 72 H 156 A 32 32 0 0 1 156 136 H 100 A 32 32 0 0 0 100 200 H 148"
+        stroke="#000000" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 148 170 L 148 230 L 204 200 Z" fill="#000000"/>
+</svg>
+</g><text x="698.667" y="744" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a8a" text-anchor="middle">32px</text><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="740.667" y="708" width="16" height="16" preserveAspectRatio="xMidYMid meet">
+  <!-- A — Ribbon Queue, v2.
+       A queue read left to right: two runs joined by one turn, the second
+       run ending in a play apex. One band, three moves, no closed shape.
+       Geometry on a 256 grid, stroke 28, radius 30 = 4x the turn's centre. -->
+  <path d="M 56 72 H 156 A 32 32 0 0 1 156 136 H 100 A 32 32 0 0 0 100 200 H 148"
+        stroke="#000000" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 148 170 L 148 230 L 204 200 Z" fill="#000000"/>
+</svg>
+</g><text x="748.667" y="744" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a8a" text-anchor="middle">16px</text><text x="592.6666666666667" y="780" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#161616">B · Ribbon Queue</text><text x="592.6666666666667" y="814" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="19" fill="#555">One band folds twice and ends in a play</text><text x="592.6666666666667" y="840" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="19" fill="#555">apex: a queue you can read left to right.</text><rect x="1065.33" y="150" width="474.667" height="774" rx="18" fill="#fff" stroke="#e4e4e0" stroke-width="1"/><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="1095.33" y="190" width="414.667" height="300" preserveAspectRatio="xMidYMid meet">
+  <!-- C — Continuous Play, v2.
+       A play triangle whose left edge is a rounded stem, like a needle
+       dropping into a groove. The triangle is solid; the stem runs on below
+       it as the queue does. Reads as play first, as a P on second look. -->
+  <path d="M 78 30 V 226" stroke="#000000" stroke-width="30" stroke-linecap="round"/>
+  <path d="M 78 52 L 78 168 L 196 110 Z" fill="#000000"/>
+</svg>
+</g><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 256" x="1095.33" y="514" width="414.667" height="120" preserveAspectRatio="xMidYMid meet">
+  <title>Playlist — horizontal lockup</title>
+  <!-- Symbol at 176 tall, then the name set in Inter SemiBold, baseline on
+       the symbol's own optical baseline. The gap is 0.42 of the symbol's
+       height, which is the space that reads as one object rather than two. -->
+  <g transform="translate(30, 40) scale(0.69)">
+    <path fill-rule="evenodd" clip-rule="evenodd" fill="#000000"
+          d="M 62 232 V 26 H 146 A 57 57 0 0 1 146 140 H 100 V 232 Z
+             M 112 54 L 112 110 L 160 82 Z"/>
+  </g>
+  <text x="212" y="163" font-family="Inter, Segoe UI, sans-serif" font-size="86"
+        font-weight="600" letter-spacing="-2.4" fill="#000000">Playlist</text>
+</svg>
+</g><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="1095.33" y="660" width="64" height="64" preserveAspectRatio="xMidYMid meet">
+  <!-- C — Continuous Play, v2.
+       A play triangle whose left edge is a rounded stem, like a needle
+       dropping into a groove. The triangle is solid; the stem runs on below
+       it as the queue does. Reads as play first, as a P on second look. -->
+  <path d="M 78 30 V 226" stroke="#000000" stroke-width="30" stroke-linecap="round"/>
+  <path d="M 78 52 L 78 168 L 196 110 Z" fill="#000000"/>
+</svg>
+</g><text x="1127.33" y="744" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a8a" text-anchor="middle">64px</text><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="1185.33" y="692" width="32" height="32" preserveAspectRatio="xMidYMid meet">
+  <!-- C — Continuous Play, v2.
+       A play triangle whose left edge is a rounded stem, like a needle
+       dropping into a groove. The triangle is solid; the stem runs on below
+       it as the queue does. Reads as play first, as a P on second look. -->
+  <path d="M 78 30 V 226" stroke="#000000" stroke-width="30" stroke-linecap="round"/>
+  <path d="M 78 52 L 78 168 L 196 110 Z" fill="#000000"/>
+</svg>
+</g><text x="1201.33" y="744" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a8a" text-anchor="middle">32px</text><g filter="url(#grey)"><svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" x="1243.33" y="708" width="16" height="16" preserveAspectRatio="xMidYMid meet">
+  <!-- C — Continuous Play, v2.
+       A play triangle whose left edge is a rounded stem, like a needle
+       dropping into a groove. The triangle is solid; the stem runs on below
+       it as the queue does. Reads as play first, as a P on second look. -->
+  <path d="M 78 30 V 226" stroke="#000000" stroke-width="30" stroke-linecap="round"/>
+  <path d="M 78 52 L 78 168 L 196 110 Z" fill="#000000"/>
+</svg>
+</g><text x="1251.33" y="744" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8a8a8a" text-anchor="middle">16px</text><text x="1095.3333333333335" y="780" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="26" font-weight="700" fill="#161616">C · Continuous</text><text x="1095.3333333333335" y="814" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="19" fill="#555">A play triangle whose left edge is a stem</text><text x="1095.3333333333335" y="840" font-family="system-ui,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif" font-size="19" fill="#555">that runs on past it.</text></svg>

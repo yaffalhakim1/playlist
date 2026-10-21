@@ -1,0 +1,153 @@
+name: Release
+
+# Builds the app for every desktop it runs on and attaches the archives to a
+# GitHub Release, so a version can be downloaded rather than built.
+#
+# Trigger it by pushing a tag, as v0.2.0, or by hand from the Actions tab.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish, as v0.2.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-amd64
+            os: windows-latest
+            goos: windows
+            goarch: amd64
+            archive: playlist-windows-amd64.zip
+          - name: macos-arm64
+            os: macos-latest
+            goos: darwin
+            goarch: arm64
+            archive: playlist-macos-arm64.zip
+          - name: macos-amd64
+            os: macos-13
+            goos: darwin
+            goarch: amd64
+            archive: playlist-macos-amd64.zip
+          - name: linux-amd64
+            os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            archive: playlist-linux-amd64.tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${{ github.ref_name }}" \
+            -o playlist${{ matrix.goos == 'windows' && '.exe' || '' }} .
+
+      # The tests need the desktop's audio stack and the tools the app leans
+      # on, so they run once, on Linux, rather than in every matrix leg.
+      - name: Test
+        if: matrix.name == 'linux-amd64'
+        run: go test ./...
+
+      - name: Package (Windows, macOS)
+        if: matrix.goos != 'linux'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp playlist${{ matrix.goos == 'windows' && '.exe' || '' }} dist/
+          cp README.md LICENSE* dist/ 2>/dev/null || true
+          cd dist && zip -r ../${{ matrix.archive }} .
+
+      - name: Package (Linux)
+        if: matrix.goos == 'linux'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp playlist dist/
+          cp README.md LICENSE* dist/ 2>/dev/null || true
+          tar -czf ${{ matrix.archive }} -C dist .
+
+      - name: Upload the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Write the notes
+        run: |
+          cat > notes.md <<'EOF'
+          A native desktop player for YouTube playlists. Paste a link, and it plays
+          the music of it.
+
+          ## Download
+
+          | Your machine | File |
+          |---|---|
+          | Windows | `playlist-windows-amd64.zip` |
+          | macOS, Apple silicon | `playlist-macos-arm64.zip` |
+          | macOS, Intel | `playlist-macos-amd64.zip` |
+          | Linux | `playlist-linux-amd64.tar.gz` |
+
+          ## Before it will play
+
+          Two programs have to be on your PATH, and the app says so plainly when
+          one is missing:
+
+          - [yt-dlp](https://github.com/yt-dlp/yt-dlp), which finds the audio of a track
+          - [ffmpeg](https://ffmpeg.org), which decodes it
+
+          The playlist itself is read by the app over the network, and kept, so
+          opening the same playlist again needs no network at all.
+          EOF
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file notes.md dist/*
+          fi

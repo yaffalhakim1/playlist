@@ -77,6 +77,13 @@ type app struct {
 	// sessionAt is when the place in the track was last written down.
 	sessionAt time.Time
 
+	// switchShuffle and switchDynamic are what the Look page's two switches
+	// are bound to. A switch flips the value it is given as it is built, so
+	// the value has to outlive the frame: these are seeded from the real
+	// state as the page is drawn, and read back after it.
+	switchShuffle bool
+	switchDynamic bool
+
 	recents []library.Recent
 	art     *artwork
 

@@ -1,0 +1,38 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg"><title>Playlist</title>
+  
+  <!-- Ribbon Queue.
+
+       A queue is a sequence, so the mark is one band that turns twice. A
+       playlist plays, so the band arrives at a play mark.
+
+       The gap between the band and the triangle is what keeps this from
+       reading as an arrowhead, so it is a full stroke and never less.
+
+       Drawn on its own grid in whole numbers, then placed: the drawing spans
+       x=41..248, y=60..196 including the band's half stroke, so it is scaled
+       1.0048 and moved 17.20 left to sit centred with a 24 margin. The
+       numbers are computed, not eyeballed.
+
+       On that grid, stroke 20:
+       · three runs at y=70, 128, 186, 58 apart
+       · two 180° turns of radius 29, half the run spacing
+       · the band spans x=51..155, ending in a round cap
+       · the triangle is 88 tall, 76 wide (equilateral), base at x=177: a 22
+         gap, one stroke
+       · corners rounded 10 — a play button has them, an arrowhead does not -->
+  <g transform="translate(-31.16 -12.99) scale(1.101)">
+    <path d="M 51 70 H 126 A 29 29 0 0 1 126 128 H 90 A 29 29 0 0 0 90 186 H 155"
+          stroke="#000000" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 177 84
+             Q 177 74 187 74
+             L 192 74
+             Q 198 74 204 79
+             L 242 122
+             Q 248 128 242 134
+             L 204 177
+             Q 198 182 192 182
+             L 187 182
+             Q 177 182 177 172
+             Z" fill="#000000"/>
+  </g>
+</svg>

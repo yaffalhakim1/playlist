@@ -123,7 +123,9 @@ func (a *app) toggleShuffle() {
 	a.shuffle = !a.shuffle
 	shuffle := a.shuffle
 	a.mu.Unlock()
-	a.engine.SetShuffle(shuffle)
+	if a.engine != nil {
+		a.engine.SetShuffle(shuffle)
+	}
 	if a.store != nil {
 		a.store.SetShuffle(shuffle)
 	}
@@ -134,7 +136,9 @@ func (a *app) setShuffle(shuffle bool) {
 	a.mu.Lock()
 	a.shuffle = shuffle
 	a.mu.Unlock()
-	a.engine.SetShuffle(shuffle)
+	if a.engine != nil {
+		a.engine.SetShuffle(shuffle)
+	}
 	if a.store != nil {
 		a.store.SetShuffle(shuffle)
 	}
@@ -153,7 +157,9 @@ func (a *app) setRepeat(mode int) {
 	}
 	repeat := a.repeat
 	a.mu.Unlock()
-	a.engine.SetRepeat(repeat)
+	if a.engine != nil {
+		a.engine.SetRepeat(repeat)
+	}
 	if a.store != nil {
 		a.store.SetRepeat(nameOfRepeat(repeat))
 	}
@@ -179,7 +185,9 @@ func (a *app) cycleRepeat() {
 	}
 	repeat := a.repeat
 	a.mu.Unlock()
-	a.engine.SetRepeat(repeat)
+	if a.engine != nil {
+		a.engine.SetRepeat(repeat)
+	}
 	if a.store != nil {
 		a.store.SetRepeat(nameOfRepeat(repeat))
 	}
