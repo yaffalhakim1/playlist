@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -176,4 +177,43 @@ func looksLikeID(id string) bool {
 		}
 	}
 	return true
+}
+
+// mixPrefix is how YouTube Music names the mix it generates from a track.
+//
+// A mix is not a playlist that exists: YouTube builds it when it is asked for,
+// from the track the listener is on. The id carries that track, which is why a
+// mix needs a video to start from and a plain playlist does not.
+const mixPrefix = "RDAMVM"
+
+// MixID is the id of the mix YouTube generates from a video.
+func MixID(videoID string) string {
+	videoID = strings.TrimSpace(videoID)
+	if videoID == "" {
+		return ""
+	}
+	return mixPrefix + videoID
+}
+
+// MixLink is the link that plays the mix generated from a video.
+//
+// The watch id is part of it: YouTube will not serve a mix from the list id
+// alone, because the list is built around the track being watched.
+func MixLink(videoID string) string {
+	videoID = strings.TrimSpace(videoID)
+	if videoID == "" {
+		return ""
+	}
+	return "https://www.youtube.com/watch?v=" + url.QueryEscape(videoID) +
+		"&list=" + url.QueryEscape(MixID(videoID))
+}
+
+// MixTitle is what to call the mix built from a track, for the sidebar and the
+// page it opens on.
+func MixTitle(trackTitle string) string {
+	trackTitle = strings.TrimSpace(trackTitle)
+	if trackTitle == "" {
+		return "Mix"
+	}
+	return "Mix - " + trackTitle
 }

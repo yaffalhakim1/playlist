@@ -19,6 +19,7 @@ import (
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/shells/sidebar"
 
+	"youtube-playlist/internal/innertube"
 	"youtube-playlist/internal/library"
 	"youtube-playlist/internal/music"
 	"youtube-playlist/internal/player"
@@ -573,6 +574,35 @@ func (a *app) load() {
 			a.showPlaylist(link, *result)
 		})
 	}()
+}
+
+// playMix opens the mix YouTube generates from the track that is playing.
+//
+// This is the one mix the app can offer without an account: a mix is built
+// around a track, so a video id is all it needs. The list YouTube builds for it
+// is read by yt-dlp, which is the only reader that can see it, so the tracks
+// come back with titles but without artists. That is the same as any other mix
+// opened from a link, which is what this is.
+func (a *app) playMix() {
+	a.mu.Lock()
+	track := a.trackLocked()
+	a.mu.Unlock()
+	if track.ID == "" {
+		a.mu.Lock()
+		a.notice = &notice{
+			title: "Nothing is playing",
+			body:  "Play a track, then start a mix from it.",
+			kind:  "info",
+		}
+		a.mu.Unlock()
+		return
+	}
+
+	link := innertube.MixLink(track.ID)
+	a.mu.Lock()
+	a.link = link
+	a.mu.Unlock()
+	a.load()
 }
 
 // showPlaylist puts a playlist on the page and starts it, and keeps it for the

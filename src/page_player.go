@@ -36,6 +36,11 @@ func (a *app) playerPage(c *ui.Context) {
 	})
 }
 
+// mixButtonHeight is the shortest window that has room for the mix button under
+// the transport. Below it the stage fills the window, and the button would sit
+// under the player bar.
+const mixButtonHeight = 700
+
 // playerStage is the artwork, what plays, and the controls under it.
 func (a *app) playerStage(c *ui.Context, track music.Track) {
 	s := surface(c)
@@ -49,7 +54,6 @@ func (a *app) playerStage(c *ui.Context, track music.Track) {
 	ui.Column(c).Grow(1).FillHeight().MinWidth(0).AlignItems(ui.Center).
 		Justify(ui.Center).Gap(t.Space(5)).Children(func() {
 		a.picture(c, track.Thumbnail, art, radiusCard(t))
-
 		ui.Column(c).FillWidth().Gap(t.Space(0.5)).Center().Children(func() {
 			leadName(c, track.Title).TextAlign(ui.Center)
 			line := trackLine(track.Title, track.Artist, track.Album)
@@ -69,6 +73,20 @@ func (a *app) playerStage(c *ui.Context, track music.Track) {
 			ui.Row(c).FillWidth().Center().Children(func() {
 				a.transport(c, a.isPlaying(), true)
 			})
+			// A mix is built around the track that is playing, so this is the
+			// one place it can be started from, and the one mix that needs no
+			// account.
+			//
+			// The smallest window has no room for it: the stage already fills
+			// it, and a button drawn there would sit under the player bar,
+			// where it cannot be reached. It comes back as the window grows.
+			if track.ID != "" && windowHeight >= mixButtonHeight {
+				ui.Row(c).FillWidth().Center().Children(func() {
+					if secondaryButton(c, lucide.Radio(), "Start a mix").Clicked() {
+						a.playMix()
+					}
+				})
+			}
 		})
 	})
 }
