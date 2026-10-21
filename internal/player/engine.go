@@ -8,6 +8,7 @@ package player
 
 import (
 	"context"
+	"log"
 	"math/rand"
 	"sync"
 	"time"
@@ -111,6 +112,12 @@ type Engine struct {
 	// tell a stream that has stopped from one that is still playing.
 	lastPlace time.Duration
 	lastMoved time.Time
+	// recoveries counts how many times in a row the stream of the track at
+	// recoveryFor has been found again, and recoveredAt is where it was found.
+	// A stream that plays on from there clears the count.
+	recoveries  int
+	recoveryFor int
+	recoveredAt time.Duration
 
 	events chan Event
 	ctx    context.Context
@@ -485,15 +492,6 @@ func (e *Engine) run() {
 	}
 }
 
-// stallTime is how long the place in a track has to stand still, with the
-// decoder finished, before the track is taken for over.
-//
-// MyGo's player reads about a second ahead, so the decoder finishes while a
-// second of audio is still waiting to be heard; the place keeps advancing
-// until that has played. Three seconds is comfortably past the drain, and
-// short enough that a dead stream does not leave the player silent.
-const stallTime = 3 * time.Second
-
 // tick reports the place in the track, and moves on when the track ends.
 func (e *Engine) tick() {
 	e.mu.Lock()
@@ -514,14 +512,18 @@ func (e *Engine) tick() {
 	position := current.Position()
 	duration := current.Duration()
 
-	// Where the place in the track has moved, note when.
+	// Where the place in the track has moved, note when. A place that stands
+	// still is the sign that audio has stopped arriving.
 	e.mu.Lock()
 	if position != lastPlace {
 		e.lastPlace, e.lastMoved = position, time.Now()
 		lastMoved = e.lastMoved
 	}
 	e.mu.Unlock()
-	stalled := !lastMoved.IsZero() && time.Since(lastMoved) > stallTime
+	still := time.Duration(0)
+	if !lastMoved.IsZero() {
+		still = time.Since(lastMoved)
+	}
 
 	// A track has ended when the place in it reaches its length, not when the
 	// player stops reporting that it plays. That flag drops as the mixer
@@ -534,25 +536,139 @@ func (e *Engine) tick() {
 			e.ended()
 			return
 		}
-		// The other way a track ends: its stream stopped before the length
-		// the metadata promised. The place in the track never reaches the
-		// length, so the comparison above can never fire, and without this
-		// the queue simply stops where the stream died.
-		exhausted := decoder != nil && decoder.Exhausted()
-		if streamEnded(exhausted, stalled, position, duration) {
-			e.ended()
+		decoderDone := decoder != nil && decoder.Exhausted()
+		if e.stopped(position, duration, still, decoderDone) {
 			return
+		}
+		// A stream that has played on since it was found again gets its tries
+		// back, so the next break is not the one that uses them up.
+		if e.recoveries > 0 && position > e.recoveredAt+recoveryHealthy {
+			e.mu.Lock()
+			e.recoveries = 0
+			e.mu.Unlock()
 		}
 	}
 	e.emit(Event{Kind: KindPosition, Index: index, Position: position, Duration: duration})
 }
 
+// stopped handles a stream that stopped before the end of its track. It reports
+// whether it dealt with it, which it does as soon as the place has stood still
+// long enough to mean something.
+//
+// The place standing still is the signal, and the only one that covers both
+// ways a stream stops: a decoder that finished moves it no further, and neither
+// does one still running against a connection that went quiet. What the decoder
+// adds is how long to wait before believing it: once it has finished, only the
+// ring's last second has to play out, so a shorter wait will do.
+func (e *Engine) stopped(position, duration, still time.Duration, decoderDone bool) bool {
+	if position <= 0 {
+		return false
+	}
+	limit := stallTime
+	if decoderDone {
+		limit = drainTime
+	}
+	if still < limit {
+		return false
+	}
+	if nearTheEnd(position, duration) {
+		// YouTube stops serving a track's data at its end, so a stream that
+		// stopped here is the track finishing, not a stream to find again.
+		e.ended()
+		return true
+	}
+	if e.recover(position) {
+		return true
+	}
+	// The tries are used up: the track is over and the queue moves on.
+	e.ended()
+	return true
+}
+
+// recover finds the stream of the track that is playing again and starts it
+// from where it stopped. It reports false when the tries are used up.
+func (e *Engine) recover(position time.Duration) bool {
+	e.mu.Lock()
+	if len(e.order) == 0 {
+		e.mu.Unlock()
+		return false
+	}
+	index := e.order[e.cursor]
+	if index < 0 || index >= len(e.queue) {
+		e.mu.Unlock()
+		return false
+	}
+	// A new track gets its own tries: the count belongs to the stream that is
+	// failing, not to the queue.
+	if e.recoveryFor != index {
+		e.recoveryFor, e.recoveries = index, 0
+	}
+	if e.recoveries >= maxRecoveries {
+		e.mu.Unlock()
+		return false
+	}
+	e.recoveries++
+	e.recoveredAt = position
+	attempt := e.recoveries
+	track := e.queue[index]
+	duration := track.Duration
+	e.mu.Unlock()
+
+	log.Printf("playback: the stream stopped at %v of %v, finding it again (%d/%d)",
+		position.Round(time.Second), duration.Round(time.Second), attempt, maxRecoveries)
+
+	// The link it was given is the usual reason it broke, so the cached one is
+	// dropped and yt-dlp is asked again.
+	if e.resolver != nil {
+		e.resolver.Forget(track.ID)
+	}
+	e.playAt(index, position)
+	return true
+}
+
+// How a stream that stops is handled.
+//
+// A stream can stop before the track's length for two different reasons, and
+// they are not the same problem:
+//
+//   - the decoder finished, which says itself that no more audio will come;
+//   - the decoder is still running but no audio is arriving, which is a
+//     connection that went quiet.
+//
+// Both leave the place in the track standing still. Neither is the end of the
+// track, so the answer is not to skip it: the link is found again and the
+// track plays on from where it stopped. Only when that fails, or when the
+// stream stopped in the last moment of the track, is it over.
+const (
+	// stallTime is how long the place in a track may stand still before the
+	// stream is taken for stopped. MyGo's player reads about a second ahead,
+	// so the ordinary drain of that buffer keeps the place moving for a
+	// moment after the decoder finishes; three seconds is comfortably past it.
+	stallTime = 3 * time.Second
+	// drainTime is the wait once the decoder has finished. Its ring holds
+	// about a second of audio, so the place stops moving a second after the
+	// decoder says it is done: a wait shorter than the one above, and still
+	// well past that second.
+	drainTime = 1500 * time.Millisecond
+	// endOfTrackLead is how much of a track may be left when its stream stops
+	// and the track still counts as over. YouTube stops serving a track's data
+	// at its end, which cuts the stream off in the last moment; finding it
+	// again there would play that moment a second time.
+	endOfTrackLead = 3 * time.Second
+	// maxRecoveries is how many times in a row a stream is found again before
+	// the track is given up on.
+	maxRecoveries = 3
+	// recoveryHealthy is how far a recovered stream plays before it counts as
+	// working again, which gives the next break a fresh set of tries.
+	recoveryHealthy = 10 * time.Second
+)
+
 // trackEnded tells whether a track at position has reached the end of its
 // duration.
 //
-// The tolerance is small on purpose: a quarter of a second of slack for the
-// place to run past the length as the buffer drains. Anything wider starts
-// cutting the last moments off a track, which is the bug this replaced.
+// The tolerance is small on purpose: a tenth of a second of slack for the place
+// to run past the length as the buffer drains. Anything wider starts cutting
+// the last moments off a track, which is the bug this replaced.
 func trackEnded(position, duration time.Duration) bool {
 	if duration <= 0 {
 		return false
@@ -560,38 +676,10 @@ func trackEnded(position, duration time.Duration) bool {
 	return position >= duration-100*time.Millisecond
 }
 
-// streamEnded tells whether the audio of a track has stopped for good before
-// the track's length.
-//
-// This is the other way a track ends, and the one the queue used to miss: the
-// stream dies — a dropped connection, a link that expired, a video whose audio
-// runs short of its metadata — and the place in the track stops moving at, say,
-// 2:38 of 3:15. The length comparison can never fire, because the place never
-// gets there, so the next track never started.
-//
-// Both halves are needed, and the second is what makes this safe:
-//
-//   - the decoder has finished. MyGo's player reads about a second ahead into a
-//     ring, so the decoder reaches its end while a second of audio is still
-//     waiting to be heard. That alone would cut the last second off every
-//     track, which is the bug this replaced.
-//   - the place in the track has stopped moving. Until the ring has drained,
-//     the place still advances; once it stops advancing while the decoder is
-//     finished, nothing more is coming.
-//
-// A decoder that has merely not produced samples yet is not finished, so a
-// stream waiting on the network is not the end.
-func streamEnded(exhausted, stalled bool, position, duration time.Duration) bool {
-	if !exhausted || !stalled {
-		return false
-	}
-	// A stream that ended within the tolerance of its length is the ordinary
-	// end, which the length comparison already reports. This one is for the
-	// stream that stopped early.
-	if duration > 0 && trackEnded(position, duration) {
-		return false
-	}
-	return true
+// nearTheEnd reports whether so little of the track is left that a stream which
+// stopped there is over rather than broken.
+func nearTheEnd(position, duration time.Duration) bool {
+	return duration > 0 && duration-position <= endOfTrackLead
 }
 
 // ended plays the next track when one ends.

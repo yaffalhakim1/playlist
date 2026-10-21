@@ -108,10 +108,17 @@ type app struct {
 
 	// scrobble sends what plays to Last.fm, when an account is connected.
 	scrobble *scrobbler
-	// lastfmKey and lastfmSecret are the application's credentials as they were
-	// typed in the Look page, kept so the fields show them.
+	// lastfmKey and lastfmSecret are the application's credentials as they are
+	// being typed in the Look page, kept so the fields show them.
 	lastfmKey    string
 	lastfmSecret string
+	// lastfmSaved says a key has been kept, so the page offers Connect rather
+	// than asking for it again.
+	lastfmSaved bool
+	// lastfmSaving says a key is being checked against Last.fm.
+	lastfmSaving bool
+	// lastfmNotice is what the page says about the last attempt to save.
+	lastfmNotice string
 	// chosenTrack says the next track to play was picked by the user, which
 	// Last.fm records as chosenByUser.
 	chosenTrack bool
@@ -198,6 +205,10 @@ func (a *app) setup() {
 	if a.store != nil {
 		key, secret, user, paused := a.store.LastFM()
 		a.lastfmKey, a.lastfmSecret = key, secret
+		// A key that is already kept is not asked for again; the fields are
+		// cleared so the secret is not held in memory for the page to show.
+		a.lastfmSaved = key != "" && secret != ""
+		a.lastfmKey, a.lastfmSecret = "", ""
 		if path, err := mygo.App.Path(mygo.PathUserData); err == nil {
 			a.scrobble.open(path)
 			a.scrobble.configure(key, secret)
@@ -356,7 +367,13 @@ func (a *app) update(fn func()) {
 	a.mu.Lock()
 	closed := a.closed
 	a.mu.Unlock()
-	if closed || a.win == nil {
+	if closed {
+		return
+	}
+	if a.win == nil {
+		// There is no window to draw on, as in a test: the state is still the
+		// app's to change, so it is changed here rather than dropped.
+		fn()
 		return
 	}
 	a.win.Update(fn)

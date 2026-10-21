@@ -91,10 +91,18 @@ func (s *scrobbler) open(dir string) {
 
 // configure sets the application's key and secret, which are entered in the
 // Look page because a release build has none of its own.
+//
+// A client that is already pointed somewhere else, as a test points one at a
+// stub, keeps pointing there: only a fresh client takes the real endpoint.
 func (s *scrobbler) configure(key, secret string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	root := ""
+	if s.client != nil {
+		root = s.client.Root
+	}
 	s.client = lastfm.New(key, secret)
+	s.client.Root = root
 }
 
 // configured reports whether an application key has been entered.
@@ -322,6 +330,21 @@ func (s *scrobbler) failed(err error) {
 	}
 	s.reconnect = true
 	s.notice = "Last.fm needs you to connect again."
+}
+
+// verify checks the application's key and secret against Last.fm, which it does
+// by asking for a token: the one call that needs the two and nothing else.
+func (s *scrobbler) verify() error {
+	s.mu.Lock()
+	client := s.client
+	s.mu.Unlock()
+	if !client.Configured() {
+		return errors.New("no key was entered")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
+	defer cancel()
+	_, err := client.Token(ctx)
+	return err
 }
 
 // connect starts the authorization: a token is asked for, Last.fm's page for it

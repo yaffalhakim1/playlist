@@ -35,5 +35,13 @@ func TestTheScrobblerTestsStayOffline(t *testing.T) {
 			t.Errorf("%s builds a Last.fm client without pointing it at a stub: "+
 				"the test would call the real API", name)
 		}
+		// A scrobbler's own client is configured through configure, which
+		// replaces it. A test that configures one and then calls verify or
+		// flush would reach the real endpoint unless it pointed the client at
+		// a stub first, so it must set Root after configuring.
+		if strings.Contains(text, ".configure(") && !strings.Contains(text, ".Root =") {
+			t.Errorf("%s configures a scrobbler without pointing its client at "+
+				"a stub: the check would reach the real API", name)
+		}
 	}
 }

@@ -2,6 +2,7 @@ package src
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -25,7 +26,7 @@ func (a *app) lastfmGroup(c *ui.Context) {
 
 	group(c, "Last.fm", nil, func() {
 		switch {
-		case !status.Configured:
+		case !status.Configured && !a.lastfmSaved:
 			setting(c, "Scrobbling",
 				"Send the tracks you listen to, and what is playing now, to your Last.fm profile. "+
 					"Last.fm issues an API key per application, so paste your own below.",
@@ -93,12 +94,33 @@ func (a *app) lastfmGroup(c *ui.Context) {
 	}
 }
 
-// lastfmCredentials draws the two fields the application's key and secret go in.
+// lastfmCredentials draws the two fields the application's key and secret go in,
+// and the button that checks and keeps them.
 //
 // They are the application's, not the user's: Last.fm issues them per
 // application, so a build that ships without them cannot sign a call at all.
+//
+// Once they are kept the fields are gone. The secret is a credential that is
+// now written down in the settings; leaving it on screen would let a screenshot
+// or a passer-by take it, and it is not needed again to scrobble.
 func (a *app) lastfmCredentials(c *ui.Context) {
 	t := c.Theme()
+	if a.lastfmSaved {
+		setting(c, "Key saved", "The key and secret are kept on this computer.", func() {
+			if button(c, "Replace").Clicked() {
+				a.lastfmSaved = false
+				a.lastfmNotice = ""
+				a.update(func() {})
+			}
+		})
+		return
+	}
+	if a.lastfmSaving {
+		setting(c, "Checking the key", "Asking Last.fm whether it accepts it.", func() {
+			components.Spinner(c, components.SpinnerRing)
+		})
+		return
+	}
 	setting(c, "API key", "From last.fm/api/account/create.", func() {
 		ui.Box(c).Width(t.Space(78)).Children(func() {
 			components.TextBox(c, &a.lastfmKey, components.TextBoxOptions{})
@@ -111,11 +133,15 @@ func (a *app) lastfmCredentials(c *ui.Context) {
 		})
 	})
 	hairline(c)
-	setting(c, "Save", "The key and secret are kept in the app's settings on this computer.", func() {
+	setting(c, "Save", "Checked with Last.fm before it is kept.", func() {
 		if button(c, "Save").Clicked() {
 			a.saveLastFMCredentials()
 		}
 	})
+	if a.lastfmNotice != "" {
+		hairline(c)
+		setting(c, "Last.fm", a.lastfmNotice, nil)
+	}
 }
 
 // connectLastFM starts the browser sign-in.
@@ -137,15 +163,54 @@ func (a *app) disconnectLastFM() {
 }
 
 // saveLastFMCredentials keeps the application's key and secret.
+//
+// The key is checked against Last.fm before it is kept, because a key that is
+// wrong is indistinguishable from one that works until the first scrobble
+// fails, and by then the mistake is a day old. The check is a token request: it
+// needs nothing but the key and the secret, and it changes nothing about the
+// account.
 func (a *app) saveLastFMCredentials() {
 	if a.scrobble == nil {
 		return
 	}
-	a.scrobble.configure(a.lastfmKey, a.lastfmSecret)
-	if a.store != nil {
-		a.store.SetLastFMCredentials(a.lastfmKey, a.lastfmSecret)
+	key, secret := strings.TrimSpace(a.lastfmKey), strings.TrimSpace(a.lastfmSecret)
+	switch {
+	case key == "" || secret == "":
+		a.lastfmNotice = "Both the key and the secret are needed."
+		a.update(func() {})
+		return
+	case len(key) != 32 || len(secret) != 32:
+		// Last.fm's keys are 32 characters of hex, and saying so saves the
+		// user a round trip to find out they pasted the wrong line.
+		a.lastfmNotice = "A Last.fm key and secret are 32 characters each. Check what was pasted."
+		a.update(func() {})
+		return
 	}
+	a.scrobble.configure(key, secret)
+	a.lastfmSaving = true
+	a.lastfmNotice = ""
 	a.update(func() {})
+
+	go func() {
+		err := a.scrobble.verify()
+		a.update(func() {
+			a.lastfmSaving = false
+			if err != nil {
+				a.scrobble.configure("", "")
+				a.lastfmNotice = "Last.fm did not accept that key: " + err.Error()
+				return
+			}
+			if a.store != nil {
+				a.store.SetLastFMCredentials(key, secret)
+			}
+			a.lastfmNotice = "Saved. Choose Connect to sign in."
+			// The secret leaves the page once it is kept: it is written down
+			// in the settings, and there is no reason to keep it in a field
+			// that a screenshot can catch.
+			a.lastfmKey, a.lastfmSecret = "", ""
+			a.lastfmSaved = true
+		})
+	}()
 }
 
 // button draws a button of the ordinary kind, at the size a settings row wants.

@@ -90,20 +90,21 @@ func TestRepeatOneOnAnEmptyQueueDoesNothing(t *testing.T) {
 	}
 }
 
-// TestATrackThatStopsEarlyIsNotTheSameAsOneThatPlaysOut checks the pair of
-// rules against a real pair of numbers: the screenshot's 2:38 of 3:15.
+// TestATrackThatStopsEarlyIsNotTheSameAsOneThatPlaysOut checks the rules
+// against a real pair of numbers: the screenshot's 4:21 of 5:37.
 func TestATrackThatStopsEarlyIsNotTheSameAsOneThatPlaysOut(t *testing.T) {
-	duration := 3*time.Minute + 15*time.Second
-	stopped := 2*time.Minute + 38*time.Second
+	duration := 5*time.Minute + 37*time.Second
+	stopped := 4*time.Minute + 21*time.Second
 
 	if trackEnded(stopped, duration) {
-		t.Fatal("the length comparison claims a track that stopped at 2:38 of 3:15")
+		t.Fatal("the length comparison claims a track that stopped at 4:21 of 5:37")
 	}
-	if !streamEnded(true, true, stopped, duration) {
-		t.Error("a stream that stopped at 2:38 of 3:15 was not reported ended")
+	if nearTheEnd(stopped, duration) {
+		t.Error("a stream that stopped at 4:21 of 5:37 was taken for the end of the track")
 	}
-	// The stream that did play out is the length comparison's business.
-	if streamEnded(true, true, duration, duration) {
-		t.Error("a stream that reached its length was claimed twice")
+	// The stream that did play out is the length comparison's business, and a
+	// stop in its last moment is the track finishing.
+	if !nearTheEnd(duration-2*time.Second, duration) {
+		t.Error("a stream that stopped two seconds from the end was not taken for the end")
 	}
 }

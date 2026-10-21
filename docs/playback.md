@@ -1,83 +1,81 @@
-# When a track ends
+# When a track ends, and when its stream does
 
-A track can end in two ways, and the queue has to notice both. It only noticed
-one, which is why a track could stop at 2:38 of 3:15 and nothing played after
-it.
+A track can stop for two different reasons, and treating them the same was a
+bug in both directions. It is worth writing down, because the second version of
+this logic was still wrong.
 
-## The two ways
+## The three ways a track stops
 
-| | What happens | How the engine knows |
+| | What happened | What to do |
 |---|---|---|
-| **It plays out** | the place in the track reaches its length | `trackEnded`: the place is within 100ms of the length |
-| **Its stream dies** | the stream stops before the length the metadata promised | `streamEnded`: the decoder is finished *and* the place has stopped moving |
+| **It played out** | the place reaches the track's length | play the next track |
+| **Its stream broke** | the place stops moving, well before the length | **find the stream again and play on from there** |
+| **It stopped in the last moment** | the place stops within 3s of the length | play the next track |
 
-The second one is the bug. A dropped connection, an expired link, or a video
-whose audio runs short of its metadata leaves the place at 2:38 while the track
-claims 3:15. The length comparison can never fire, because the place never gets
-there. Nothing else advanced the queue, so the music simply stopped.
+The middle one is the one that was wrong twice.
 
-## Why both halves are needed
+## What went wrong
 
-The obvious fix — end the track when the decoder finishes — would cut the last
-second off every track.
+**First bug: the queue stopped.** A stream died at 2:38 of 3:15. The only rule
+was "the place reached the length", which could never fire, so nothing
+advanced and the music simply stopped.
 
-MyGo's audio player reads about a second ahead into a ring buffer. The decoder
-therefore reaches its end while a second of audio is still waiting to be heard.
-Ending on "the decoder finished" alone would start the next track over that
-second, which is the bug the length comparison was introduced to fix in the
-first place.
+**Second bug: the fix only covered one kind of stop.** The replacement waited
+for the decoder to report that it had finished. But a stream can also go *quiet*
+without finishing: the connection stalls, ffmpeg sits waiting, and the decoder
+never reports an end. The screenshot that showed this was **4:21 of 5:37** — the
+place had stopped, the decoder had not finished, and the rule never fired.
 
-So the engine waits for both:
+**And the fix was aimed at the wrong outcome.** Even when it did fire, it
+*skipped the track*. A broken connection is not a track that finished. Skipping
+throws away the rest of a song because a link expired for a moment.
 
-- **the decoder is finished**, which `ffmpeg.PCM.Exhausted()` reports; and
-- **the place in the track has stopped moving** for `stallTime` (three
-  seconds).
+## What it does now
 
-While the ring drains, the place still advances. Once it stops advancing with
-the decoder finished, nothing more is coming.
+The signal is **the place in the track standing still**. That covers both kinds
+of stop: a decoder that finished moves it no further, and neither does one still
+running against a connection that went quiet. The place only moves when samples
+reach the mixer, so a track playing normally keeps moving.
 
-Three seconds is comfortably past the one-second read ahead, and short enough
-that a dead stream does not leave the player silent for long.
+When the place has stood still:
 
-## What must not look like a stall
+1. **Within 3 seconds of the end?** The track is over. YouTube stops serving a
+   track's data at its end, so this is the ordinary finish.
+2. **Otherwise, find the stream again** — drop the cached URL (it is usually the
+   reason the stream broke) and ask yt-dlp for a fresh one — then play on **from
+   the position reached**.
+3. **Three tries in a row**, with the count reset when a recovered stream plays
+   10 seconds without breaking. After that, the track is given up on and the
+   queue moves on.
 
-Two things stop the place moving without the stream being dead, and both reset
-the stall clock:
+A pause also stops the place, which is why the rule only runs while the engine
+believes a track plays.
 
-- **Holding the track.** `Resume` sets the clock to now. Without it, a track
-  held for more than three seconds would end the moment it played again.
-- **Seeking.** `Seek` sets the clock to now, and the seek restarts ffmpeg,
-  which clears `Exhausted`.
+## The two waits
 
-A decoder that has merely not produced samples yet is not finished, so a stream
-waiting on the network is not the end either.
+| | Wait | Why |
+|---|---|---|
+| decoder finished | 1.5s | its ring holds about a second of audio, so the place stops a second after the decoder is done |
+| decoder still running | 3s | no such signal, so a longer wait before believing the place |
 
-## Repeat
-
-`RepeatOne` replays the track by loading it again rather than seeking the old
-player. A stream that died early died with the link it was given, so the same
-link would die in the same place.
+Both are longer than the one-second read-ahead. A wait shorter than that would
+take the ordinary drain of the buffer for a stopped stream and interrupt every
+track.
 
 ## The tests
 
-The rules are pure functions, so they are tested without a device:
+Pure rules, no device:
 
 ```powershell
-go test ./internal/player/ -run 'TestAStream|TestTheOrdinary|TestADecoder|TestAStall|TestTheStall|TestHolding|TestSeeking|TestRepeat'
+go test ./internal/player/ -run 'TestAStoppedStream|TestAStreamThatStopped|TestAStopInTheLast|TestTheRecovery|TestARecovered'
 ```
 
-The decoder's flag is tested against real ffmpeg and a local file, so it needs
-no network:
+The real thing, which kills a live stream and checks the same track plays on:
 
 ```powershell
-go test ./internal/ffmpeg/ -run TestExhausted
+go test -tags e2e ./internal/player/ -run TestTheStreamIsFoundAgain
 ```
 
-And the whole thing is checked on a real stream, which is slow:
-
-```powershell
-go test -tags e2e ./internal/player/ -run TestEngineAdvancesWhenTheStreamDies
-```
-
-That one plays a real track, kills the decoder partway, and fails unless the
-queue moves on by itself.
+That one is the regression test for this bug: it plays a real track, kills the
+decoder partway, and fails unless the track continues **on the same track** from
+where it stopped.

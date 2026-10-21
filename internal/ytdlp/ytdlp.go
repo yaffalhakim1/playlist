@@ -168,6 +168,27 @@ func (r *Resolver) cached(videoID string) string {
 	return entry.url
 }
 
+// Forget drops a cached URL, so the next resolve asks yt-dlp again.
+//
+// A stream that broke off mid-track broke with the link it was given, and that
+// link is usually the reason: it expired, or the server stopped serving it. A
+// recovery that took the cached answer would fail the same way, so the caller
+// forgets it first.
+func (r *Resolver) Forget(videoID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.cache[videoID]; !ok {
+		return
+	}
+	delete(r.cache, videoID)
+	for i, id := range r.order {
+		if id == videoID {
+			r.order = append(r.order[:i], r.order[i+1:]...)
+			break
+		}
+	}
+}
+
 // remember keeps a URL until it goes stale, and forgets the oldest when there
 // are too many.
 func (r *Resolver) remember(videoID, url string) {
