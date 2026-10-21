@@ -1,0 +1,516 @@
+/* Playlist — landing page.
+ *
+ * The colours are the app's own, from src/palettes.go: the Onevra palette the
+ * default build ships with. Nothing here is a new colour; every value has a
+ * contrast figure in the comment beside it, computed rather than estimated.
+ *
+ * The scale is the app's too: a 8px base, a 24px inset, and one rounding for
+ * cards. A page about a product should look like the product.
+ */
+
+:root {
+  /* Light: the app's default palette. */
+  --page: #fcfbf9;
+  --card: #fefefd;
+  --ink: #33332f;        /* 12.27:1 on the page */
+  --muted: #72726a;      /*  4.69:1 on the page, AA for body */
+  --accent: #bd481b;     /*  4.94:1 on the page */
+  --on-accent: #ffffff;  /*  5.11:1 on the accent */
+  --hairline: #e8e5df;
+  --shadow: 42 38 32;
+
+  /* The scale. Every distance is one of these, or a multiple. */
+  --s1: 8px;
+  --s2: 16px;
+  --s3: 24px;
+  --s4: 32px;
+  --s5: 48px;
+  --s6: 64px;
+  --s7: 96px;
+  --s8: 128px;
+
+  --radius: 24px;
+  --radius-small: 12px;
+
+  /* Type. One family, four sizes, three weights. */
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  --display: clamp(2.6rem, 1.4rem + 5vw, 5rem);
+  --headline: clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem);
+  --title: clamp(1.15rem, 1.05rem + 0.4vw, 1.35rem);
+  --body: clamp(1rem, 0.96rem + 0.2vw, 1.0625rem);
+  --small: 0.875rem;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+:root[data-theme="dark"] {
+  --page: #211f1c;
+  --card: #2b2925;
+  --ink: #eeeae2;        /* 13.70:1 on the page */
+  --muted: #bdb6aa;      /*  8.17:1 on the page */
+  --accent: #ed986e;     /*  7.29:1 on the page */
+  --on-accent: #211f1c;  /*  7.29:1 on the accent */
+  --hairline: #3a3733;
+  --shadow: 0 0 0;
+}
+
+/* --- reset ------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  /* The anchor links should not put a heading under the sticky header. */
+  scroll-padding-top: var(--s7);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--body);
+  line-height: 1.6;
+  /* Large text is tracked tight, small text open. Apple's own rule, and the
+     app follows it too. */
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+img { max-width: 100%; height: auto; display: block; }
+
+h1, h2, h3 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+
+p { margin: 0; }
+ul { margin: 0; padding: 0; list-style: none; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  /* The ink, not the muted colour: the tint behind the chip lifts the
+     background enough that muted text falls to 4.21:1, under the 4.5:1 that
+     body text needs. Full-strength ink is 11.8:1 on the same tint. */
+  color: var(--ink);
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+}
+
+a { color: var(--accent); text-underline-offset: 0.2em; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: var(--s2);
+  background: var(--card);
+  color: var(--ink);
+  padding: var(--s1) var(--s2);
+  border-radius: var(--radius-small);
+  z-index: 10;
+}
+.skip:focus { left: var(--s2); }
+
+/* --- the header ------------------------------------------------------- */
+
+.site-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  /* Glass over the content, which is the one place a blur belongs: the
+     floating functional layer, never the content itself. */
+  background: color-mix(in oklab, var(--page) 82%, transparent);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border-bottom: 1px solid transparent;
+  transition: border-color 200ms var(--ease-out);
+  /* A narrow window has no room for the sections beside the name and the
+     switch. They wrap rather than push the switch off the edge. */
+  flex-wrap: wrap;
+  row-gap: var(--s1);
+}
+
+.site-head[data-stuck="true"] { border-bottom-color: var(--hairline); }
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+.brand-mark { width: 28px; height: 28px; }
+
+.site-head nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-left: auto;
+  font-size: var(--small);
+}
+
+/* Under about 560px the sections do not fit beside the name, so they take a
+   row of their own and the switch stays on the first. */
+@media (max-width: 560px) {
+  .site-head { gap: var(--s2); }
+  .site-head nav {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    gap: var(--s2);
+  }
+  .theme { margin-left: auto; }
+}
+.site-head nav a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 160ms var(--ease-out);
+}
+.site-head nav a:hover { color: var(--ink); }
+
+.theme {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  /* 44px tall: a comfortable target, and it clears the pointer minimum. */
+  min-height: 44px;
+  padding: 0 var(--s2);
+  font: inherit;
+  font-size: var(--small);
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+.theme:hover { color: var(--ink); border-color: var(--muted); }
+
+/* The icon is drawn, not a character: a disc that is filled in the dark and
+   outlined in the light, so the button says what it will do. */
+.theme-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  transition: background 200ms var(--ease-out), transform 200ms var(--ease-out);
+}
+:root[data-theme="dark"] .theme-icon {
+  background: currentColor;
+  transform: scale(0.82);
+}
+
+/* --- layout ----------------------------------------------------------- */
+
+main > section {
+  /* One inset for the page, and one width for the text: a measure past about
+     70 characters is hard to read, whatever the window. */
+  padding: var(--s7) var(--s3);
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.hero { padding-top: var(--s6); }
+
+.hero h1 {
+  font-size: var(--display);
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  max-width: 16ch;
+}
+
+.lede {
+  margin-top: var(--s3);
+  max-width: 56ch;
+  color: var(--muted);
+  font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  line-height: 1.5;
+}
+
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s4);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px: the smallest comfortable target. */
+  min-height: 44px;
+  padding: 0 var(--s3);
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: var(--body);
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: background 160ms var(--ease-out), border-color 160ms var(--ease-out),
+              transform 160ms var(--ease-out);
+}
+.button:active { transform: scale(0.98); }
+
+.button-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.button-primary:hover { background: color-mix(in oklab, var(--accent) 88%, var(--ink)); }
+
+.button-quiet {
+  color: var(--ink);
+  border-color: var(--hairline);
+  background: var(--card);
+}
+.button-quiet:hover { border-color: var(--muted); }
+
+.cta-note {
+  margin-top: var(--s2);
+  font-size: var(--small);
+  color: var(--muted);
+}
+
+/* --- shots ------------------------------------------------------------ */
+
+.shot {
+  margin: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  /* A hairline and a shadow too faint to notice: the card reads as a surface,
+     not as a box drawn around a picture. */
+  border: 1px solid var(--hairline);
+  box-shadow: 0 1px 0 0 rgb(var(--shadow) / 0.03),
+              0 24px 60px -32px rgb(var(--shadow) / 0.22);
+  background: var(--card);
+}
+
+.shot img { width: 100%; }
+
+.shot figcaption {
+  padding: var(--s2) var(--s3);
+  font-size: var(--small);
+  color: var(--muted);
+  border-top: 1px solid var(--hairline);
+}
+
+.shot-hero { margin-top: var(--s6); }
+
+/* --- the claim -------------------------------------------------------- */
+
+.claim {
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+.claim p {
+  max-width: 62ch;
+  font-size: var(--headline);
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+/* --- features --------------------------------------------------------- */
+
+.features h2, .appearances h2, .gallery h2, .download h2 {
+  font-size: var(--headline);
+  margin-bottom: var(--s2);
+}
+
+.section-lede {
+  max-width: 56ch;
+  color: var(--muted);
+  margin-bottom: var(--s5);
+}
+
+.feature-grid {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  margin-top: var(--s5);
+}
+
+.feature {
+  padding: var(--s3);
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+
+.feature h3 {
+  font-size: var(--title);
+  margin-bottom: var(--s1);
+  letter-spacing: -0.012em;
+}
+
+.feature p {
+  color: var(--muted);
+  font-size: var(--body);
+}
+
+/* Two of the six run wider, which keeps the grid from reading as a set of
+   identical tiles: the content decides the shape, not the layout. */
+@media (min-width: 860px) {
+  .feature-wide { grid-column: span 2; }
+}
+
+/* --- appearances ------------------------------------------------------ */
+
+.pair {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 860px) {
+  .pair { grid-template-columns: 1fr 1fr; }
+}
+
+/* --- gallery ---------------------------------------------------------- */
+
+.gallery-grid {
+  display: grid;
+  gap: var(--s3);
+  grid-template-columns: 1fr;
+}
+@media (min-width: 720px) {
+  .gallery-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1080px) {
+  .gallery-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* --- download --------------------------------------------------------- */
+
+.platforms {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--hairline);
+  margin-bottom: var(--s4);
+}
+
+.platforms li {
+  display: grid;
+  gap: var(--s1) var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--hairline);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 720px) {
+  .platforms li {
+    grid-template-columns: 200px 1fr auto;
+    align-items: baseline;
+  }
+}
+
+.platform-name { font-weight: 500; }
+.platform-file code { font-size: var(--small); }
+.platform-note { color: var(--muted); font-size: var(--small); }
+
+.button-row { margin-bottom: var(--s6); }
+
+.requirements {
+  padding: var(--s3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--card);
+  max-width: 62ch;
+}
+.requirements h3 { font-size: var(--title); margin-bottom: var(--s1); }
+.requirements p { color: var(--muted); margin-bottom: var(--s2); }
+.requirements ul { display: grid; gap: var(--s1); margin-bottom: var(--s2); }
+.requirements li { color: var(--muted); }
+.requirements li a { color: var(--accent); }
+
+.small { font-size: var(--small); color: var(--muted); }
+
+/* --- footer ----------------------------------------------------------- */
+
+.site-foot {
+  border-top: 1px solid var(--hairline);
+  padding: var(--s5) var(--s3) var(--s6);
+  display: grid;
+  gap: var(--s3);
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+@media (min-width: 720px) {
+  .site-foot {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+  }
+  .site-foot .small { grid-column: 1 / -1; }
+}
+
+.foot-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  font-weight: 600;
+  font-size: var(--small);
+}
+
+.site-foot nav {
+  display: flex;
+  gap: var(--s3);
+  font-size: var(--small);
+}
+.site-foot nav a { color: var(--muted); text-decoration: none; }
+.site-foot nav a:hover { color: var(--ink); }
+
+/* --- the reveal ------------------------------------------------------- */
+
+/* A page comes in from a little below, once. It is the only motion on the
+   page besides the theme icon and a button's press.
+ *
+ * The hidden state is applied by the script, not by this file: if the script
+ * never runs, nothing may be left invisible. That is what `.js` on the root is
+ * for, and why it is added by the inline script in the head.
+ *
+ * Without `.js` there is no rule at all, so every element keeps the default
+ * opacity of 1. That is the whole safety of this pattern. */
+html.js .reveal {
+  transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out);
+  opacity: 0;
+  transform: translateY(14px);
+}
+html.js .reveal[data-shown="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Fewer and gentler, not none: the fade stays, the movement goes. The
+     selector matches the hidden rule's specificity, or it would lose to it. */
+  html.js .reveal,
+  html.js .reveal:not([data-shown="true"]) {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

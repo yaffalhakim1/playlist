@@ -9,6 +9,7 @@
 | [`lastfm.md`](lastfm.md) | scrobbling: the key, the threshold, the outbox, where the credential lives |
 | [`discord.md`](discord.md) | the presence panel: both timestamps, the album line, what does not render |
 | [`shipping.md`](shipping.md) | why a release is `mygo build` and never `go build` |
+| [`site.md`](site.md) | the landing page: where it lives, how it is published, and its accessibility and SEO checks |
 
 ## Where the record lives
 

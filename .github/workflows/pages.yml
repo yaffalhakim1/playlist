@@ -1,0 +1,68 @@
+name: Pages
+
+# Publishes site/ to GitHub Pages. The page is static: no build step, so what is
+# in the folder is what is served.
+#
+# Enable it once, in the repository settings: Settings → Pages → Build and
+# deployment → Source: GitHub Actions.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and let a newer push replace a queued one rather
+# than queueing behind it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the page
+        run: |
+          set -e
+          # The files the page needs, and the ones a crawler looks for. A broken
+          # link here is a page that 404s on its own screenshot.
+          for f in index.html styles.css main.js sitemap.xml robots.txt site.webmanifest \
+                   assets/social.png assets/b-small.svg assets/player.png \
+                   assets/home.png assets/home-dark.png assets/playlist.png \
+                   assets/stats.png assets/look.png assets/favicon.svg \
+                   assets/favicon.ico assets/apple-touch-icon.png; do
+            if [ ! -f "site/$f" ]; then
+              echo "missing site/$f" >&2
+              exit 1
+            fi
+          done
+          # Every asset the HTML references has to exist, or the page ships a
+          # broken image.
+          grep -o 'assets/[A-Za-z0-9._-]*' site/index.html | sort -u | while read -r ref; do
+            if [ ! -f "site/$ref" ]; then
+              echo "index.html references $ref, which is not in site/" >&2
+              exit 1
+            fi
+          done
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
