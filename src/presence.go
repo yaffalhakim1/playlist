@@ -2,6 +2,7 @@ package src
 
 import (
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -89,7 +90,6 @@ func (p *presence) show(track music.Track, playing bool) {
 
 	go p.send(track, playing, started)
 }
-
 // send connects if it must, and sets the activity.
 func (p *presence) send(track music.Track, playing bool, started time.Time) {
 	p.mu.Lock()
@@ -119,12 +119,26 @@ func (p *presence) send(track music.Track, playing bool, started time.Time) {
 
 	activity := discord.Activity{
 		Details: track.Title,
-		State:   track.Artist,
-		// Type 2 is Listening, which is the one that says "Listening to" rather
-		// than "Playing".
+		// Discord shows `details` and `state` as the two lines under the name,
+		// and a newline inside `state` is drawn as a line of its own. That is
+		// how the artist and the album both get a line: the protocol has no
+		// third text field.
+		State: stateLine(track),
+		// Type 2 is Listening. Discord labels that "Listening to <application>",
+		// which is why the application is named Axolotl rather than "Music":
+		// the word comes from the application, not from this field.
 		Type: 2,
 	}
-	if !started.IsZero() && playing {
+	// Both ends of the timestamp are needed for the progress bar: Discord draws
+	// the elapsed time against the total only when it knows where the track
+	// ends. With a start alone it shows a counter and no bar.
+	if !started.IsZero() && playing && track.Duration > 0 {
+		activity.Timestamps = &discord.Timestamps{
+			Start: started.Unix(),
+			End:   started.Add(track.Duration).Unix(),
+		}
+	} else if !started.IsZero() && playing {
+		// A length the app does not know: the counter still runs, without a bar.
 		activity.Timestamps = &discord.Timestamps{Start: started.Unix()}
 	}
 	if track.Thumbnail != "" {
@@ -141,6 +155,37 @@ func (p *presence) send(track music.Track, playing bool, started time.Time) {
 		p.mu.Unlock()
 		client.Close()
 	}
+}
+
+// stateLine is the second line of the panel: the artist, and the album under
+// it when the track knows one.
+//
+// The protocol has two text fields, not three, but Discord draws a newline
+// inside `state` as its own line. That is the only way the album gets a line of
+// its own, as the reference screenshots show.
+//
+// Newlines inside the artist or the album are flattened first: a title with a
+// line break in it would otherwise push the panel into three or four lines, and
+// the one newline this sends is the one it means.
+func stateLine(track music.Track) string {
+	artist := oneLine(track.Artist)
+	album := oneLine(track.Album)
+	if album == "" || album == artist {
+		return artist
+	}
+	if artist == "" {
+		return album
+	}
+	return artist + "\n" + album
+}
+
+// oneLine flattens the line breaks in a string, so a title cannot break the
+// panel's layout.
+func oneLine(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", " ")
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	return strings.TrimSpace(s)
 }
 
 // clearLocked takes the panel down. The caller holds the lock.

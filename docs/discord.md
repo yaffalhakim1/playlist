@@ -45,13 +45,32 @@ Two ways to change that, in order of effort:
 | Field | Value |
 |---|---|
 | `details` | the track's title |
-| `state` | the artist |
-| `timestamps.start` | when the track began, so Discord counts forward |
+| `state` | the artist, then the album on a second line |
+| `timestamps.start` | when the track began |
+| `timestamps.end` | when it ends, which is what draws the progress bar |
 | `type` | `2`, which is Listening |
 | `assets.large_image` | the artwork's URL |
 
-A paused track sends the same fields without the timestamp, so the counter
+**The progress bar needs both ends.** With `start` alone Discord shows a
+counting timer and no bar; it can only draw the elapsed-against-total bar when
+it knows where the track finishes.
+
+**The album is a second line inside `state`.** The protocol has two text fields,
+not three, but Discord draws a newline inside `state` as its own line. Line
+breaks inside an artist or album name are flattened first, so a title cannot
+push the panel into three lines.
+
+A paused track sends the same fields without the timestamps, so the counter
 stops.
+
+## Why it says "Listening to Axolotl"
+
+Discord writes that line itself: `Listening to <application name>`. The
+application is called Axolotl in the developer portal, so that is the word.
+Rename the application there to change it; no rebuild is needed.
+
+The same is true of the small music icon beside it, which Discord draws for
+activity type `2`. It is not an asset the app sends.
 
 ## When it fails
 
