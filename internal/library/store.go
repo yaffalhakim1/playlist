@@ -74,6 +74,16 @@ type Data struct {
 	Dynamic bool     `json:"dynamic"`
 	Palette string   `json:"palette"`
 	Discord bool     `json:"discord"`
+	// LastFMKey and LastFMSecret are the application's own credentials, which
+	// a release build does not carry: Last.fm issues them per application, and
+	// the user enters them in the Look page.
+	LastFMKey    string `json:"lastfmKey,omitempty"`
+	LastFMSecret string `json:"lastfmSecret,omitempty"`
+	// LastFMUser is the account that is connected, empty when none is. The
+	// session key itself is kept apart, in a file only the user can read.
+	LastFMUser string `json:"lastfmUser,omitempty"`
+	// LastFMPaused says scrobbling is off without being disconnected.
+	LastFMPaused bool `json:"lastfmPaused,omitempty"`
 }
 
 // maxRecents is how many playlists are remembered.
@@ -349,6 +359,30 @@ func (s *Store) Discord() bool {
 func (s *Store) SetDiscord(on bool) {
 	s.mu.Lock()
 	s.data.Discord = on
+	s.mu.Unlock()
+	s.save()
+}
+
+// LastFM returns the application's key and secret, the connected account, and
+// whether scrobbling is paused.
+func (s *Store) LastFM() (key, secret, user string, paused bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.LastFMKey, s.data.LastFMSecret, s.data.LastFMUser, s.data.LastFMPaused
+}
+
+// SetLastFMCredentials keeps the application's key and secret.
+func (s *Store) SetLastFMCredentials(key, secret string) {
+	s.mu.Lock()
+	s.data.LastFMKey, s.data.LastFMSecret = key, secret
+	s.mu.Unlock()
+	s.save()
+}
+
+// SetLastFMAccount keeps the connected account and the pause choice.
+func (s *Store) SetLastFMAccount(user string, paused bool) {
+	s.mu.Lock()
+	s.data.LastFMUser, s.data.LastFMPaused = user, paused
 	s.mu.Unlock()
 	s.save()
 }

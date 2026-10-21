@@ -106,6 +106,19 @@ type app struct {
 	// presence shows what plays in Discord, when it is turned on.
 	presence *presence
 
+	// scrobble sends what plays to Last.fm, when an account is connected.
+	scrobble *scrobbler
+	// lastfmKey and lastfmSecret are the application's credentials as they were
+	// typed in the Look page, kept so the fields show them.
+	lastfmKey    string
+	lastfmSecret string
+	// chosenTrack says the next track to play was picked by the user, which
+	// Last.fm records as chosenByUser.
+	chosenTrack bool
+	// switchLastFM is the Last.fm pause switch's value for one frame, read back
+	// after the frame is drawn.
+	switchLastFM bool
+
 	recents []library.Recent
 	art     *artwork
 
@@ -177,6 +190,24 @@ func (a *app) setup() {
 	a.presence = &presence{}
 	if a.appearance.discord && discordClientID != "" {
 		a.presence.enable(true)
+	}
+
+	// Last.fm: the application's key and the account are the user's, entered in
+	// the Look page, so a build carries neither.
+	a.scrobble = newScrobbler()
+	if a.store != nil {
+		key, secret, user, paused := a.store.LastFM()
+		a.lastfmKey, a.lastfmSecret = key, secret
+		if path, err := mygo.App.Path(mygo.PathUserData); err == nil {
+			a.scrobble.open(path)
+			a.scrobble.configure(key, secret)
+			a.scrobble.restore(user, paused)
+		}
+	}
+	a.scrobble.onSave = func(user string, paused bool) {
+		if a.store != nil {
+			a.store.SetLastFMAccount(user, paused)
+		}
 	}
 
 	a.engine = player.New(ytdlp.NewResolver())
@@ -364,6 +395,12 @@ func (a *app) apply(event player.Event) {
 			if a.presence != nil {
 				a.presence.resetTrack()
 			}
+			// Last.fm follows the play from its first sample. A track the queue
+			// moved on to was not chosen; one the user asked for was.
+			if a.scrobble != nil {
+				a.scrobble.begin(event.Track, a.chosenTrack)
+				a.chosenTrack = false
+			}
 		}
 		a.playing = event.State == player.StatePlaying
 		if a.presence != nil {
@@ -375,6 +412,11 @@ func (a *app) apply(event player.Event) {
 		if a.presence != nil {
 			a.presence.show(a.trackLocked(), a.playing)
 		}
+		// A held track is not being heard, so the time does not count towards
+		// Last.fm's threshold.
+		if a.scrobble != nil && !a.playing {
+			a.scrobble.breakListen()
+		}
 	case player.KindPosition:
 		a.position = event.Position
 		if event.Duration > 0 {
@@ -382,6 +424,15 @@ func (a *app) apply(event player.Event) {
 		}
 		if !a.scrubbing {
 			a.seekValue = event.Position.Seconds()
+		}
+		// Last.fm counts what was heard from these positions, so a pause or a
+		// seek forward cannot make a track qualify.
+		if a.scrobble != nil {
+			if a.scrubbing {
+				a.scrobble.breakListen()
+			} else {
+				a.scrobble.observe(time.Now(), event.Position, a.duration)
+			}
 		}
 		// The place in the track is written now and then, not on every report:
 		// the engine reports five times a second, and a file write that often

@@ -100,6 +100,10 @@ func (a *app) playAt(index int, at time.Duration) {
 	if a.engine == nil {
 		return
 	}
+	// A track started from here was picked by the user, which Last.fm records.
+	a.mu.Lock()
+	a.chosenTrack = true
+	a.mu.Unlock()
 	a.engine.PlayAt(index, at)
 }
 
@@ -108,6 +112,9 @@ func (a *app) play(index int) {
 	if a.engine == nil {
 		return
 	}
+	a.mu.Lock()
+	a.chosenTrack = true
+	a.mu.Unlock()
 	a.engine.Play(index)
 }
 
@@ -116,6 +123,9 @@ func (a *app) playAll() {
 	if len(a.queue) == 0 {
 		return
 	}
+	a.mu.Lock()
+	a.chosenTrack = true
+	a.mu.Unlock()
 	a.engine.Play(0)
 }
 

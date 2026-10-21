@@ -19,6 +19,8 @@ browser engine.
   place you stopped.
 - Keeps the tracks on disk, so the second open of a playlist needs no network.
 - Counts what you listened to: plays per day, and the tracks played most.
+- Shows what plays in Discord, and scrobbles to Last.fm when an account is
+  connected.
 - Hides to the notification area when you close the window. The tray brings it
   back, and the media keys work from any app.
 

@@ -32,6 +32,11 @@ func (a *app) appearancePage(c *ui.Context) {
 	a.switchShuffle = a.isShuffle()
 	a.switchDynamic = a.appearance.dynamic
 	a.switchDiscord = a.appearance.discord
+	// The Last.fm switch is seeded from the account's own state, so it shows the
+	// pause as it is rather than as the last frame left it.
+	if a.scrobble != nil {
+		a.switchLastFM = !a.scrobble.statusNow().Paused
+	}
 
 	a.pageFrame(c, true, func() {
 		ui.Column(c).FillWidth().Gap(t.Space(6)).Children(func() {
@@ -98,6 +103,8 @@ func (a *app) appearancePage(c *ui.Context) {
 					a.switchSetting(c, &a.switchDiscord, "Discord")
 				})
 			})
+
+			a.lastfmGroup(c)
 		})
 	})
 

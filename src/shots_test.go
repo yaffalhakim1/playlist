@@ -38,10 +38,16 @@ func TestDrawPages(t *testing.T) {
 		{"-dark", 1280, 840, true},
 		{"-small", 1000, 620, false},
 		{"-wide", 1680, 980, false},
+		// A page taller than the window is only seen whole by a tall one, which
+		// is how the lower groups, such as Last.fm, get looked at.
+		{"-tall", 1280, 1600, false},
 	}
 	for _, page := range []string{pageHome, pagePlaylist, pagePlayer, pageQueue, pageStats, pageAppearance} {
 		for _, shape := range shapes {
 			a := &app{art: newArtwork(), current: 0, page: page}
+			// The Look page draws the Last.fm card from the scrobbler's state, so
+			// the shot needs one: without it the card is left out.
+			a.scrobble = newScrobbler()
 			a.playlist = &music.Playlist{ID: "PL", Title: "Mix - Bruno Mars - It Will Rain"}
 			a.queue = queue
 			a.visible = visibleTracks(queue, "")
