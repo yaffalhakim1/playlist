@@ -129,6 +129,13 @@ or into the player bar.
 The logo is a queue that folds and arrives at a play mark. Files, colour codes,
 clear space and misuse rules live in `logo/`.
 
+## Documentation
+
+`docs/` holds the record: every bug with its cause and the test that pins it
+([`docs/bugs.md`](docs/bugs.md)), what runs off the thread that draws
+([`docs/performance.md`](docs/performance.md)), and how playback, mixes, Last.fm
+and the release work. [`CHANGELOG.md`](CHANGELOG.md) is what changed per version.
+
 ## Licence
 
 The code belongs to its author. Inter ships under the SIL Open Font License;
