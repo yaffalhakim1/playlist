@@ -38,3 +38,31 @@ func TestDurationFromURL(t *testing.T) {
 		}
 	}
 }
+
+// TestAMixTrackGetsTheArtistOfItsChannel checks the one field a mix used to
+// lose.
+//
+// A mix is read by yt-dlp, which knows no artist but does know the channel that
+// published each track. Without it a mix's rows were a title and nothing else,
+// which reads as a broken list and cannot be scrobbled.
+func TestAMixTrackGetsTheArtistOfItsChannel(t *testing.T) {
+	cases := []struct {
+		name             string
+		channel, uploader string
+		title, want       string
+	}{
+		{name: "a performer's channel", channel: "Anne-Marie", title: "2002", want: "Anne-Marie"},
+		{name: "a topic page", channel: "Anne-Marie - Topic", title: "2002", want: "Anne-Marie"},
+		{name: "the uploader when there is no channel", uploader: "Katy Perry", title: "Roar", want: "Katy Perry"},
+		{name: "a label", channel: "Various Artists", title: "Roar", want: ""},
+		{name: "nothing at all", title: "Roar", want: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := artistFromChannel(tc.channel, tc.uploader, tc.title); got != tc.want {
+				t.Errorf("artistFromChannel(%q, %q, %q) = %q, want %q",
+					tc.channel, tc.uploader, tc.title, got, tc.want)
+			}
+		})
+	}
+}

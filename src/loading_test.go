@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -22,6 +23,10 @@ func TestDrawLoading(t *testing.T) {
 	a.link = "https://music.youtube.com/playlist?list=PLFgquLnL59alCl_2TQvOiD5Vgm1hCaGSI"
 
 	tester := ui.NewTester(a.frame, 1280, 840)
+	tester.Frame()
+	// The spinner turns and the busy button settles: the shot is of the wait as
+	// it looks a moment in, not of its first frame.
+	tester.Advance(300 * time.Millisecond)
 	tester.Frame()
 	path := filepath.Join(dir, "home-loading.png")
 	file, err := os.Create(path)

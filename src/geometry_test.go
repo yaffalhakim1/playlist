@@ -64,7 +64,7 @@ func TestPlayerPageGeometry(t *testing.T) {
 // TestPagesFitTheWindow draws every page on a small window, which shows that
 // none of them asks for more room than it has.
 func TestPagesFitTheWindow(t *testing.T) {
-	pages := []string{pageHome, pagePlaylist, pagePlayer, pageQueue, pageStats, pageAppearance}
+	pages := []string{pageHome, pageQueue, pagePlayer, pageQueue, pageStats, pageAppearance}
 	for _, page := range pages {
 		t.Run(page, func(t *testing.T) {
 			a := &app{art: newArtwork(), current: 0, page: page}
@@ -73,7 +73,7 @@ func TestPagesFitTheWindow(t *testing.T) {
 				{ID: "one", Title: "It Will Rain", Artist: "Bruno Mars"},
 				{ID: "two", Title: "Roar", Artist: "Katy Perry"},
 			}
-			a.visible = visibleTracks(a.queue, "")
+			a.visible = allTracks(a.queue)
 
 			tester := ui.NewTester(a.frame, 1000, 620)
 			tester.Frame()

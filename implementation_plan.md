@@ -1,82 +1,105 @@
-# YouTube Playlist Player — implementation plan
+# Plan — MyGo only, motion, states, playback fix
 
-Native desktop music player. Paste a playlist link, it plays the playlist.
+## Verdict
 
-## Stack (verified, not assumed)
+APPROVED, with one structural change: **drop Onevra completely**. The app keeps
+its layout (rail · page · player bar) and its copy, and moves every widget to
+`github.com/egoist/mygo/ui` v0.6.4. That removes 24 files' worth of an external
+component library, one dependency, and one whole layer between the app and MyGo.
 
-| Piece | Choice | Verified how |
-|---|---|---|
-| UI | MyGo native UI (`github.com/egoist/mygo/ui`), GPU-drawn, no webview | `mygo.egoist.dev/docs/ui`, `go doc` on v0.5.5 |
-| Components | Onevra (`github.com/oneo-me/onevra/source` v0.2026.13) | `go doc` on the pinned version |
-| Look | Material 3 (tonal surfaces, rounded, dynamic accent from album art) | design language, implemented in `src/theme.go` |
-| Metadata | YouTube Music InnerTube `browse` endpoint, WEB_REMIX client, pure Go | POST to `music.youtube.com/youtubei/v1/browse` — returned real playlist data |
-| Stream URL | `yt-dlp -f bestaudio -g` (handles YouTube's cipher / PO tokens) | ran it here: returned a working `itag=251` googlevideo URL |
-| Decode | `ffmpeg` → s16le PCM → `mygo/audio` `Decoder` (WASAPI on Windows) | `go doc github.com/egoist/mygo/audio`; ffmpeg 7.1 present |
+## 1. Dependencies
 
-External binaries required at runtime: **yt-dlp** and **ffmpeg**. Both are on this
-machine (`yt-dlp 2026.03.17`, `ffmpeg 7.1`). The app reports a clear error when
-one is missing instead of failing silently.
-
-## Architecture
-
-```
-main.go                  entry point only → src.Run()
-src/                     native UI (one package, mirrors opencode-gui)
-  app.go                 app state, window, root view
-  theme.go               Material 3 colour roles → ui.Theme
-  sidebar.go             library / recents / paste box
-  nowplaying.go          big artwork + title/artist/album
-  tracklist.go           virtualised track list
-  playerbar.go           transport controls + seek + volume
-  shortcuts.go           keyboard bindings
-internal/
-  music/                 domain model: Track, Playlist
-  innertube/             InnerTube browse client + response parsing
-  stream/                yt-dlp URL resolution + ffmpeg PCM decoder (audio.Decoder)
-  player/                playback engine: queue, shuffle/repeat, autoplay, position
-  library/               persistence: recents + settings (JSON in PathUserData)
-```
-
-Dependency direction: `src → player → stream → music`, `src → innertube → music`.
-No cycles. `music` holds the shared domain types so nothing is duplicated.
-
-## The three hard parts
-
-1. **Metadata.** InnerTube `browse` with `browseId = "VL" + playlistID` returns
-   `musicResponsiveListItemRenderer` items: `playlistItemData.videoId`, title and
-   byline in `flexColumns`, duration in `fixedColumns`, artwork in `thumbnail`.
-   Long playlists paginate with a `continuationItemRenderer` token. The parser
-   walks the JSON for those renderers, so a layout change in one branch does not
-   break the rest. yt-dlp is *not* used here: it returns no artist or album for
-   music.youtube.com entries, which is exactly what a music player needs.
-
-2. **Audio.** `ffmpeg -ss <t> -i <url> -vn -f s16le -ar 48000 -ac 2 -` feeds
-   `stream.PCM`, which implements `audio.Decoder` (SampleRate/Channels/Read/
-   SetPosition/Len) and hands it to `audio.NewPlayer`. Seeking restarts ffmpeg
-   at the offset; `Len` comes from the track duration. Output is MyGo's own
-   mixer → WASAPI on Windows, so the app owns the audio path, no external player.
-
-3. **Threading.** The view is a pure function of state. The engine runs its own
-   goroutine and publishes events on a channel; the UI reads that channel and
-   applies changes with `win.Update`, which runs on the main thread. All shared
-   state is mutex-guarded.
-
-## Risks
-
-| Risk | Mitigation |
+| Before | After |
 |---|---|
-| YouTube changes InnerTube/yt-dlp | yt-dlp is the maintained path for streams; metadata failure shows a toast, not a crash |
-| yt-dlp / ffmpeg missing on the target machine | explicit startup check with the install command in the message |
-| Long playlists (500+ items) | InnerTube pagination + virtualised `ui.List` |
-| Stream URLs expire (they carry `expire=`) | re-resolve per track, never cache a URL longer than the track |
-| Decode stall on a slow network | ffmpeg reads at its own pace; the UI shows a buffering state |
+| `github.com/egoist/mygo v0.5.5` | `v0.6.4` |
+| `github.com/oneo-me/onevra/source v0.2026.13` | **removed** |
 
-## Verification
+Onevra's `shells/sidebar` is replaced by `src/shellview.go` becoming the real
+view — the same layout the tests already draw, now the only path.
 
-- `go build ./...` — compiles.
-- `go tool mygo vet .` — MyGo's native-UI lifetime checks (elements in state, goroutine captures).
-- `go test ./...` — unit tests for the pure logic: InnerTube parsing against a
-  saved response fixture, URL parsing, PCM conversion, engine queue/shuffle/repeat
-  transitions with a fake stream.
-- `ui.NewTester` — layout and interaction assertions on the views.
-- Live check: paste a real playlist, play a track, hear audio.
+## 2. What replaces Onevra
+
+| Onevra | MyGo |
+|---|---|
+| `components.Text` | `ui.Text` |
+| `components.Button` (3 variants) | `ui.ButtonBase` + our own paint (`src/ui.go`) |
+| `components.Icon` | `ui.Icon` |
+| `components.IconButton` | `ui.ButtonBase` + `ui.Icon` + `Tooltip` |
+| `components.List` | `ui.List` |
+| `components.ScrollView` | `ui.Scroll`, `ui.ScrollHorizontal` |
+| `components.Sidebar` | `ui.Sidebar` + `SidebarSection` + `SidebarItem` |
+| `components.Slider` | `ui.Slider` |
+| `components.Switch` | `ui.Switch` |
+| `components.TextBox` | `ui.TextInput` |
+| `components.Spinner` | `ui.Spinner` |
+| `components.Segmented` | `ui.Segmented` |
+| `components.Toasts` | built in by MyGo (`Context.AddToast`) |
+| `components.ScrollEdgeBarExtent` | our own reserved strip |
+| `icons/lucide` | `src/icons.go`, ~22 inline SVG paths |
+| `theme.Onevra` | `src/palettes.go` schemes over `ui.LightTheme`/`DarkTheme` |
+
+## 3. Motion (60 fps, and 240 Hz)
+
+Rule: **animate paint-only where the frame can.** MyGo's `AnimatePose` runs
+transforms and opacity in frames that only paint — the view is not rebuilt. That
+is the only way motion stays smooth at 240 Hz, because a rebuilt view costs a
+layout pass per frame.
+
+| Motion | Mechanism | Frames |
+|---|---|---|
+| page change | `ElementTransition{Animation:&Smooth, Enter/Exit}` | build |
+| card hover lift | `AnimatePose{Y:-2, Scale:1.004}` | **paint** |
+| row hover | `AnimateColor` on the row's face | build |
+| transport press | `AnimatePose{Scale:0.94}` | **paint** |
+| play ⇄ pause glyph | `AnimatePose{Scale, Rotate}` + crossfade | **paint** |
+| artwork change | crossfade of two bitmaps | build (2 layers) |
+| now-playing bars | `Loop` on four bar heights | build (4 elements) |
+| sidebar collapse | `Animate` on the rail width | build |
+| toast | MyGo's own | build |
+
+All of it stills under `Preferences.ReduceMotion`; `Loop` keeps going because it
+shows that something is happening.
+
+## 4. States the pages were missing
+
+- **Reading a playlist** — a skeleton of rows where the list will be, not just a
+  spinner under the field.
+- **Pasting** — the field shows a Paste button while empty, and the Play button
+  enables only when the text parses as a playlist link.
+- **Playing** — the player bar's play button becomes a pause mark, the now-playing
+  row grows live bars, the bar's title gets the track's cover colour.
+- **Buffering** — the bar says "Finding the track…" instead of looking idle.
+- **Failed** — the bar keeps the track's name and offers Try again.
+- **Empty** — unchanged copy, but drawn with the new empty-state widget.
+
+## 5. Playback: why the music stopped early
+
+Three causes, all in `internal/ffmpeg` and `internal/player`:
+
+1. **`-xerror`.** ffmpeg aborts the whole process on the first recoverable HTTP
+   error. googlevideo drops connections mid-stream routinely. Removed.
+2. **No reconnect.** ffmpeg was told nothing about retrying a streamed HTTP
+   source. Added `-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5`.
+3. **A clean EOF was treated as a broken stream.** The engine only knew
+   "exhausted", so a track whose audio is shorter than its metadata (YouTube
+   rounds `lengthSeconds`) was recovered three times — up to 3 × (resolve + 1.5s)
+   of silence — before moving on. The decoder now reports a clean end apart from
+   a failure, and a clean end ends the track.
+
+## 6. Mixes
+
+Already worked (`docs/mixes.md`), and verified again against the live service:
+`yt-dlp --flat-playlist -J` on an `RDAMVM…` link returns the entries. One
+improvement: yt-dlp reports `channel`/`uploader` per entry, so mix tracks can
+carry an artist instead of a bare title. That makes them scrobble and read
+properly in the queue.
+
+## 7. Verification
+
+- `go build ./...`, `go test ./...`, `go tool mygo vet .`
+- new: `src/motion_test.go` — the poses are bounded and every moving element
+  stills under Reduce Motion
+- new: `internal/player/` — a clean EOF ends the track
+- new: `internal/ffmpeg/` — the argument list carries the reconnect flags and no
+  `-xerror`
+- `src/shots_test.go` still writes every page for the eye

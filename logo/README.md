@@ -30,7 +30,7 @@ One colour, used flat. The mark never carries a gradient.
 | Role | Value |
 |---|---|
 | Ink | `#000000` on light, `#FFFFFF` on dark |
-| Brand | `#BD481B` — Onevra's terracotta, the app's own accent |
+| Brand | `#BD481B` — the app's own terracotta accent |
 
 The mark works in one colour, reversed, and on the brand terracotta. It does
 not work on a mid-tone without a backing: the gap between the band and the
@@ -53,14 +53,14 @@ the floor.
 
 ## Type
 
-The name is set in **Inter SemiBold**, tracked −0.024 em at display sizes and
+The name is set in **Plus Jakarta Sans SemiBold**, tracked −0.024 em at display sizes and
 −0.018 em in the stacked lockup. The same face and tracking the app uses, so
 the mark and the interface are one family.
 
 The wordmark is live text in the lockup files, not outlines. Before any use
 that must not depend on a font being installed — print, a press kit, a
 trademark filing — convert the text to outlines, or ask for the outlined
-version. Inter is under the SIL Open Font License, which allows this.
+version. Plus Jakarta Sans is under the SIL Open Font License, which allows this.
 
 ## Misuse
 

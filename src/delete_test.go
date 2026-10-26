@@ -79,13 +79,13 @@ func TestForgetPlaylistKeepsThePlays(t *testing.T) {
 // TestDeletingTheOpenPlaylistGoesHome checks what the window does when the
 // playlist on screen is deleted: it cannot keep showing it.
 func TestDeletingTheOpenPlaylistGoesHome(t *testing.T) {
-	a := &app{art: newArtwork(), current: 0, page: pagePlaylist, store: openStore(t)}
+	a := &app{art: newArtwork(), current: 0, page: pageQueue, store: openStore(t)}
 	list := samplePlaylist()
 	a.link = "link-a"
 	a.openLink = "link-a"
 	a.playlist = &list
 	a.queue = list.Tracks
-	a.visible = visibleTracks(list.Tracks, "")
+	a.visible = allTracks(list.Tracks)
 
 	a.deletePlaylist("link-a")
 
@@ -109,7 +109,7 @@ func TestDeletingTheOpenPlaylistGoesHome(t *testing.T) {
 // TestDeletingAnotherPlaylistLeavesThePageAlone checks that deleting a playlist
 // that is not on screen changes nothing the user is looking at.
 func TestDeletingAnotherPlaylistLeavesThePageAlone(t *testing.T) {
-	a := &app{art: newArtwork(), current: 0, page: pagePlaylist, store: openStore(t)}
+	a := &app{art: newArtwork(), current: 0, page: pageQueue, store: openStore(t)}
 	list := samplePlaylist()
 	a.link = "link-open"
 	a.openLink = "link-open"
@@ -118,7 +118,7 @@ func TestDeletingAnotherPlaylistLeavesThePageAlone(t *testing.T) {
 
 	a.deletePlaylist("link-other")
 
-	if a.page != pagePlaylist {
+	if a.page != pageQueue {
 		t.Errorf("the app left the page it was on: %q", a.page)
 	}
 	if a.playlist == nil {

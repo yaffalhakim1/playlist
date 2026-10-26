@@ -161,7 +161,7 @@ func TestRestorePutsThePlayerWhereItStopped(t *testing.T) {
 	if a.playlist.Title != list.Title {
 		t.Errorf("the page shows %q, not %q", a.playlist.Title, list.Title)
 	}
-	if a.page != pagePlaylist {
+	if a.page != pageQueue {
 		t.Errorf("the app opened on %q, not the playlist", a.page)
 	}
 	if len(a.queue) != len(list.Tracks) {
@@ -260,7 +260,7 @@ func TestCachedLoadStartsTheQueue(t *testing.T) {
 	if a.playlist == nil {
 		t.Fatal("the cached playlist was not shown")
 	}
-	if a.page != pagePlaylist {
+	if a.page != pageQueue {
 		t.Errorf("the app is on %q, not the playlist", a.page)
 	}
 	if len(a.queue) != len(list.Tracks) {

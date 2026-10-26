@@ -66,15 +66,18 @@ type PCM struct {
 	duration time.Duration
 	ctx      context.Context
 
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	out     io.ReadCloser
-	wait    chan error
-	raw     []byte // bytes read but not decoded yet
-	frame   int64  // frames decoded so far
-	done    bool
-	ended   bool // the stream stopped writing: the end, or a failure
-	chunk   []byte
+	mu    sync.Mutex
+	cmd   *exec.Cmd
+	out   io.ReadCloser
+	wait  chan error
+	raw   []byte // bytes read but not decoded yet
+	frame int64  // frames decoded so far
+	done  bool
+	ended bool // the stream stopped writing: the end, or a failure
+	// clean says the stream ended at its own end rather than breaking, which is
+	// what tells a track that finished from one worth finding again.
+	clean bool
+	chunk []byte
 }
 
 // NewPCM starts ffmpeg on a stream and returns the decoder for it.
@@ -175,6 +178,19 @@ func (p *PCM) Exhausted() bool {
 	return p.ended
 }
 
+// Finished reports whether the stream reached its own end rather than breaking.
+//
+// The difference matters: ffmpeg exits cleanly when it has written the last
+// sample of a track, and that is the track finishing even when the length the
+// metadata promised is a little longer than the audio. A stream that died on a
+// closed connection, or that ffmpeg gave up on, leaves this false and is worth
+// finding again.
+func (p *PCM) Finished() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.ended && p.clean
+}
+
 // fill reads bytes until there are enough of them, or the stream ends.
 func (p *PCM) fill(want int) error {
 	if p.chunk == nil {
@@ -196,6 +212,9 @@ func (p *PCM) fill(want int) error {
 			// The stream will write no more, for whatever reason.
 			p.ended = true
 			if errors.Is(err, io.EOF) {
+				// ffmpeg wrote its last sample: the track finished, and what
+				// the metadata promised was a little long.
+				p.clean = true
 				return io.EOF
 			}
 			return err
@@ -220,27 +239,20 @@ func (p *PCM) decode(buf []float32) int {
 }
 
 // start runs ffmpeg on the stream, at an offset.
+//
+// Three things here are what keeps a track from stopping early, and each was a
+// bug before it was a flag:
+//
+//   - no -xerror. That flag makes ffmpeg abort the whole process on the first
+//     recoverable error, and googlevideo drops connections mid-stream as a
+//     matter of course. One dropped read is not a broken track.
+//   - -reconnect and its friends, so ffmpeg itself reopens a streamed HTTP
+//     source that went quiet, instead of sitting on a dead socket while the
+//     place in the track stands still.
+//   - a buffer of its own, so a hiccup on the network is absorbed rather than
+//     reaching the player.
 func (p *PCM) start(at time.Duration) error {
-	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin", "-xerror"}
-	if isHTTP(p.url) {
-		args = append(args,
-			"-protocol_whitelist", "http,https,httpproxy,tcp,tls,crypto",
-			"-rw_timeout", strconv.FormatInt(readTimeout.Microseconds(), 10),
-			"-user_agent", userAgent,
-		)
-	}
-	if at > 0 {
-		args = append(args, "-ss", strconv.FormatFloat(at.Seconds(), 'f', 3, 64))
-	}
-	args = append(args,
-		"-i", p.url,
-		"-vn",
-		"-f", "s16le",
-		"-acodec", "pcm_s16le",
-		"-ac", strconv.Itoa(channels),
-		"-ar", strconv.Itoa(sampleRate),
-		"pipe:1",
-	)
+	args := streamArgs(p.url, at)
 
 	cmd := exec.CommandContext(p.ctx, "ffmpeg", args...)
 	// ffmpeg is a console program: without this, Windows opens a window for it
@@ -261,8 +273,50 @@ func (p *PCM) start(at time.Duration) error {
 	p.out = out
 	p.wait = waited
 	// A fresh run writes again: whatever ended the last one is behind us.
-	p.ended = false
+	p.ended, p.clean = false, false
 	return nil
+}
+
+// streamArgs is the argument list ffmpeg is given for a stream, so what keeps a
+// track from stopping early can be read without a process.
+//
+// Three things here are what keeps a track from stopping early, and each was a
+// bug before it was a flag:
+//
+//   - no -xerror. That flag makes ffmpeg abort the whole process on the first
+//     recoverable error, and googlevideo drops connections mid-stream as a
+//     matter of course. One dropped read is not a broken track.
+//   - -reconnect and its friends, so ffmpeg itself reopens a streamed HTTP
+//     source that went quiet, instead of sitting on a dead socket while the
+//     place in the track stands still.
+//   - the offset before -i, so a seek is an input option: after -i ffmpeg reads
+//     from the start and throws the decoded audio away, which makes every seek
+//     slower than it has to be.
+func streamArgs(url string, at time.Duration) []string {
+	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin"}
+	if isHTTP(url) {
+		args = append(args,
+			"-protocol_whitelist", "http,https,httpproxy,tcp,tls,crypto",
+			"-rw_timeout", strconv.FormatInt(readTimeout.Microseconds(), 10),
+			"-reconnect", "1",
+			"-reconnect_streamed", "1",
+			"-reconnect_on_network_error", "1",
+			"-reconnect_delay_max", "5",
+			"-user_agent", userAgent,
+		)
+	}
+	if at > 0 {
+		args = append(args, "-ss", strconv.FormatFloat(at.Seconds(), 'f', 3, 64))
+	}
+	return append(args,
+		"-i", url,
+		"-vn",
+		"-f", "s16le",
+		"-acodec", "pcm_s16le",
+		"-ac", strconv.Itoa(channels),
+		"-ar", strconv.Itoa(sampleRate),
+		"pipe:1",
+	)
 }
 
 // stop ends the run of ffmpeg.
@@ -286,6 +340,7 @@ func (p *PCM) stop() {
 	}
 	p.cmd = nil
 	p.raw = nil
+	p.clean = false
 }
 
 // isHTTP tells an address that needs the network options of ffmpeg from a

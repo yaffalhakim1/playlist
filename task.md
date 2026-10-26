@@ -2,84 +2,63 @@
 
 Status: `[ ]` todo · `[~]` in progress · `[x]` done
 
-## 1. Scaffold — done
-- [x] Verified toolchain, deps (mygo v0.5.5, onevra v0.2026.13), external tools (yt-dlp, ffmpeg)
-- [x] Verified InnerTube browse returns playlist metadata with artist, album, length and artwork
-- [x] Verified yt-dlp resolves a direct audio URL that YouTube serves whole
-- [x] `go mod init`, `mygo.json`, `main.go` → `src.Run()`
+## 1. MyGo only — done
+- [x] `github.com/egoist/mygo` v0.5.5 → **v0.6.4**
+- [x] **Onevra removed entirely**: one dependency now, not two
+- [x] `src/icons.go`: the 28 icons the app uses, as inline SVG
+- [x] `src/theme.go`: MyGo's own light and dark themes, in the app's palette
+- [x] `src/widgets.go`: the app's buttons, cards and type roles on MyGo's bases
+- [x] `src/shellview.go`: the shell layout is now the *only* view, not a copy
+      of one a library owned
+- [x] every page moved from `components.*` to `ui.*`
+- [x] `go mod tidy`: `github.com/oneo-me/onevra` is gone from `go.mod`
 
-## 2. Metadata — done
-- [x] `internal/music`: `Track`, `Playlist`
-- [x] `internal/innertube`: client (browse + continuation), playlist-id parsing
-- [x] `internal/innertube`: response parser (music + plain list items)
-- [x] `internal/ytdlp`: flat playlist reading, for the mixes InnerTube cannot show
-- [x] `internal/playlist`: the loader that picks the reader that knows the playlist
-- [x] tests: fixture-based parsing tests, URL/ID parsing table tests
+## 2. Motion — done
+- [x] `motionPress` / `motionLift` / `motionColor` / `motionFade`, all ≤300 ms
+- [x] **paint-only where possible**: `AnimatePose` on cards, buttons, the
+      transport and the shelf, so a moving frame costs a transform and not a
+      layout pass
+- [x] `AnimateColor` for every interactive face (a `Transition{Colors}` holds a
+      stale face for a frame — found by drawing the dark theme)
+- [x] a page arriving still uses `motionReveal`
+- [x] artwork crossfades in
+- [x] the playing row carries four bars that move with the music
+- [x] the sidebar rail opens and closes by animating its own width
+- [x] everything stills under Reduce Motion (`TestMotionStillsUnderReduceMotion`)
 
-## 3. Audio — done
-- [x] `internal/ytdlp`: stream URL resolution, with a cache
-- [x] `internal/ffmpeg`: the decoder that feeds MyGo's audio package
-- [x] tests: the decoder reads real samples (e2e)
+## 3. States — done
+- [x] **pasting**: the field offers Paste while empty, Play once it holds a link
+- [x] **reading**: a busy button that keeps its words readable, and a skeleton
+      of the page where the list will be
+- [x] **playing**: pause glyph, live bars, the track named in the bar
+- [x] **buffering**: "Finding the track…" with a spinner
+- [x] **failed**: "That track will not play" with **Try again**
+- [x] **empty**: the same copy, drawn by the new empty-state widget
 
-## 4. Playback engine — done
-- [x] `internal/player`: queue, shuffle, repeat, autoplay-next, volume
-- [x] tests: the order of the queue, the shuffle, the repeat modes
+## 4. Playback — done
+- [x] **`-xerror` removed**: one recoverable HTTP error no longer aborts ffmpeg
+- [x] **reconnect flags**: ffmpeg reopens a streamed source that goes quiet
+- [x] **a clean end is not a broken stream**: the decoder reports `Finished()`,
+      and the engine ends the track instead of "recovering" it three times
+- [x] the offset is an input option (`-ss` before `-i`)
+- [x] `TestARealTrackPlaysToItsEnd` (e2e): a real track played to 3:06 of 3:07
+- [x] verified live in the running app: a track played out and the queue moved on
 
-## 5. Persistence — done
-- [x] `internal/library`: the recents and the settings, in `PathUserData`
+## 5. Mixes — done
+- [x] verified against the live service: `RDAMVM…` links still read
+- [x] **mix tracks now carry an artist**, from the channel yt-dlp reports:
+      528 of 528 on a real mix, where it was 0 before
+- [x] `TestAMixFromATrackLoads` (e2e) checks ids, the seed track, and artists
 
-## 6. UI (native, Onevra's palette) — done
-- [x] `src/theme.go`: the look — Onevra's palette, the accent, and one scale
-      for space, type, corners and motion
-- [x] `src/assets.go`: Inter, embedded, so the app looks the same everywhere
-- [x] `src/app.go`: the state, the window, the root view
-- [x] `src/shell.go`: the sidebar, the page frame, the header's room
-- [x] `src/page_home.go`: the link, and the playlists played before
-- [x] `src/page_playlist.go`: the cover, the head, the songs
-- [x] `src/page_player.go`: the big player, the queue beside it, the queue page
-- [x] `src/page_stats.go`: the totals, the chart, the tracks played most
-- [x] `src/page_appearance.go`: the theme, the accent, the artwork colour, the queue
-- [x] `src/playerbar.go`: the transport, the place in the track, the volume
-- [x] `src/shortcuts.go`: space, the arrows, the keys with control
-- [x] the pictures of the albums, fetched and kept, and their colour read
-- [x] `ui.NewTester` tests of the views, and tests that draw every page in the
-      light and the dark, on a small window, a wide one, and with nothing in it
-
-## 7. Keeping the music going — done
-- [x] `src/tray.go`: the icon in the notification area; closing the window
-      hides it instead of ending the app
-- [x] `src/keys.go`: the media keys, and a key to bring the window back
-
-## 8. The design system, and its guard rails — done
-- [x] `src/assets.go`: Inter, embedded, and a test that fails if the app
-      silently falls back to the system's font
-- [x] `src/theme.go`: one scale for space, type, tracking, leading, corners and
-      motion, with the roles named in `src/widgets.go`
-- [x] `src/design_test.go`: the scale is ordered, tracking follows size, radii
-      are multiples of the theme, and no page writes a size or a colour by hand
-- [x] `src/layout_test.go`: pages keep clear of the header and the bar, the
-      column centers on a wide window, the header's action lines up with the
-      page, list rows agree in height, and the window survives a larger text
-      scale, high contrast and reduced motion
-- [x] `src/behaviour_test.go`: the accent round trip, what an empty page says,
-      and the shelf of playlists that starts a load
-- [x] `src/deadlock_test.go`: the freeze that hit when a track started — the
-      tray asked the app for its state while the caller held the lock, which
-      is not reentrant. Fixed by telling the tray what plays; guarded by a
-      deadline test and by a test that reads the source for a double lock
-
-## 9. Verify
-- [x] `go build ./...`, `go tool mygo vet .`, `go test ./...`
-- [x] `go test -tags e2e ./...`: reads real playlists, decodes real audio
-- [x] the app runs: `go tool mygo dev`
-- [x] closing the window keeps the process and its music alive
-- [x] the look: check the window and put it right — every page drawn and
-      looked at, in the light, the dark, and on a small and a wide window
-- [ ] `go tool mygo build`: package the app
+## 6. Verify
+- [x] `go build ./...`
+- [x] `go vet ./...`
+- [x] `go test ./...`
+- [x] `go test -tags e2e ./...` on the paths that changed
+- [x] the app runs: launched, loaded a real 182-track playlist, played it
+- [x] every page drawn and looked at, light and dark, small and wide
 
 ## Left to do
-- [ ] the OS media panel (Windows SMTC, macOS Now Playing, MPRIS on Linux),
-      so the track shows in the system's own controls
-- [ ] an audio cache on disk, so a track played twice does not go to the
-      network twice
+- [ ] the OS media panel (Windows SMTC, macOS Now Playing, MPRIS)
+- [ ] an audio cache on disk, so a track played twice costs one network trip
 - [ ] gapless playback: start the next track before this one ends

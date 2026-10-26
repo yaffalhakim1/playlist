@@ -77,14 +77,46 @@ The one-second ring is behind the subtlest bug in this codebase: it is why a
 
 - **One inset, one gap** per page (`pageInset`), so spacing is a decision made
   once rather than per widget.
-- **Type roles** (`pageName`, `sectionName`, `itemName`, `body`, `caption`,
-  `eyebrow`) carry size, weight, tracking and leading as one decision, so a page
-  cannot accidentally ask the font for a new combination.
-- **Lists are `components.List`**, which MyGo virtualizes: only the rows in view
-  are drawn. A playlist of 340 tracks does not draw 340 rows.
-- **Only two things animate**: `motionReveal` brings a page in, `motionPress`
-  settles a control. Both are springs, and MyGo stills them when the desktop asks
-  for less motion.
+- **Type roles** (`pageName`, `sectionName`, `itemName`, `body`, `caption`)
+  carry size, weight, tracking and leading as one decision, so a page cannot
+  accidentally ask the font for a new combination.
+- **Lists are `ui.List`**, which MyGo virtualizes: only the rows in view are
+  drawn. A playlist of 340 tracks does not draw 340 rows.
+- **Only five things animate**: `motionReveal` brings a page in, `motionPress`
+  settles a control, `motionLift` raises a card, `motionColor` recolours a face,
+  `motionFade` crossfades a picture. All still when the desktop asks for less
+  motion.
+
+### Motion that keeps its frame budget
+
+The rule: **move with a pose, not with a rebuild.**
+
+`AnimatePose` runs in frames that repaint **without rebuilding the view**. A
+view rebuilt per frame costs a layout pass per frame; a pose costs a transform
+and an opacity. On a 240 Hz display that is the difference between smooth and
+stuttering, and it is why every hover lift and every press settle in this app is
+a pose.
+
+| What moves | Mechanism | Frames |
+|---|---|---|
+| a card under the pointer | `AnimatePose` | **paint only** |
+| a button pressed | `AnimatePose` | **paint only** |
+| play ⇄ pause | `AnimatePose` + glyph crossfade | **paint only** |
+| a row's face | `AnimateColor` | build, but only a colour |
+| the playing row's bars | four `Loop`s | build, but four boxes |
+| a page arriving | `ElementTransition` | build, once |
+| the rail opening | `Animate` on a width | build, over 220 ms |
+| artwork arriving | crossfade | build, twice |
+
+Two traps, both found by drawing rather than by reading:
+
+1. **A pose must be set on every frame.** It starts at the first pose it is
+   given, so an element that only receives one while hovered *jumps* into it
+   instead of travelling there.
+2. **`Transition{Colors: true}` holds the face it was built with for a frame.**
+   A button that changes its own face while it is built kept the stale one,
+   which drew every secondary button white-on-white in the dark theme. Every
+   interactive face uses `AnimateColor` instead.
 
 ---
 
@@ -96,6 +128,8 @@ The one-second ring is behind the subtlest bug in this codebase: it is why a
   and do not overlap their neighbours (`layout_test.go`)
 - design: pages use the type scale and theme colours, and write no size or colour
   by hand (`design_test.go`)
+- motion: nothing runs longer than 300 ms, a pose stills under Reduce Motion, and
+  a row recolours without moving (`motion_test.go`)
 - the font is really in use, rather than silently falling back
   (`TestFontInUse` — it draws the same words in the app's family and in one that
   does not exist, and fails if the pictures match)
@@ -104,6 +138,8 @@ The one-second ring is behind the subtlest bug in this codebase: it is why a
 
 - **frame time under load.** There is no benchmark of a redraw. The app is small
   enough that this has not been a problem, but nothing would catch a regression.
+  The motion test checks that movement is *paint-only*, which is the property
+  that keeps a redraw cheap; it does not time one.
 - **memory over a long session.** The caches are bounded, but nothing measures
   them.
 - **`go test -race`.** It cannot run here: there is no C toolchain for the race

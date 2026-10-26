@@ -25,7 +25,7 @@ terracotta or on white. Also as an app icon at 512 px.
 
 ## Assumptions (stated, not asked)
 - The name stays "Playlist"; the mark is a symbol first, with a wordmark later.
-- It should sit with Onevra's warm palette and Inter, not fight them.
+- It should sit with the app's warm palette and Plus Jakarta Sans, not fight them.
 - A tray icon exists today as a hand-drawn music note; it is a placeholder and
   may be replaced.
 

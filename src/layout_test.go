@@ -35,7 +35,7 @@ func loaded(page string) *app {
 		{ID: "two", Title: "Roar", Artist: "Katy Perry", Album: "Prism"},
 		{ID: "three", Title: "Roll Up", Artist: "Wiz Khalifa"},
 	}
-	a.visible = visibleTracks(a.queue, "")
+	a.visible = allTracks(a.queue)
 	a.playing = true
 	return a
 }
@@ -80,14 +80,20 @@ func TestPageColumnStopsGrowing(t *testing.T) {
 	tester := ui.NewTester(a.frame, 1680, 980)
 	tester.Frame()
 
-	title, ok := tester.Find("Paste a link. Hear the music.")
+	// The page's own content starts at the column's edge. The hero's eyebrow is
+	// inside the hero panel, so it sits one card inset in; the panel itself is
+	// what has to start at the column.
+	row, ok := tester.Find("Playlist link")
 	if !ok {
-		t.Fatalf("the page has no name: %v", tester.Texts())
+		t.Fatalf("the page has no import row: %v", tester.Texts())
 	}
 	columnLeft, columnRight := pageColumn(t, a, 1680)
-	if title.X < columnLeft-1 || title.X > columnLeft+1 {
-		t.Errorf("the page's name starts at x=%.0f, not at the column's edge at x=%.0f",
-			title.X, columnLeft)
+	// The import row's field sits inside the row's own padding and its icon, so
+	// the row begins a fixed inset to its left.
+	const rowInset = 49
+	if diff := (row.X - rowInset) - columnLeft; diff > 2 || diff < -2 {
+		t.Errorf("the page's content starts at x=%.0f, not at the column's edge at x=%.0f",
+			row.X-rowInset, columnLeft)
 	}
 	// The column is narrower than the page area, and centered in it.
 	pageLeft := a.sidebarWidth()
@@ -144,8 +150,11 @@ func pageInsetFor(t *testing.T, width int) float32 {
 // TestPagesKeepClearOfTheHeaderAndTheBar checks that no page puts anything
 // under the floating header or under the player bar: both are over the page,
 // and anything there is covered.
+//
+// The Player page has no bar under it — it carries its own transport — so the
+// bar's strip is only reserved on the other pages.
 func TestPagesKeepClearOfTheHeaderAndTheBar(t *testing.T) {
-	pages := []string{pageHome, pagePlaylist, pagePlayer, pageQueue, pageStats, pageAppearance}
+	pages := []string{pageHome, pageQueue, pagePlayer, pageStats, pageAppearance}
 	for _, page := range pages {
 		for _, size := range windows {
 			t.Run(page+"/"+size.name, func(t *testing.T) {
@@ -169,10 +178,14 @@ func TestPagesKeepClearOfTheHeaderAndTheBar(t *testing.T) {
 					}
 					if rect.Y < header && rect.Y > 0 {
 						// Only the header's own action may sit there.
-						if text != "Paste link" && text != "Clear history" {
+						if text != "Playlist" && text != "Show or hide the sidebar" {
 							t.Errorf("%q sits at y=%.0f, under the header that ends at %.0f",
 								text, rect.Y, header)
 						}
+					}
+					if page == pagePlayer {
+						// The page owns the whole height.
+						continue
 					}
 					if rect.Y+rect.H > bar && rect.Y < bar {
 						t.Errorf("%q runs from y=%.0f to y=%.0f, into the bar that starts at %.0f",
@@ -218,7 +231,7 @@ func TestPlayerBarHasItsOwnStrip(t *testing.T) {
 	tester := ui.NewTester(a.frame, 1280, 840)
 	tester.Frame()
 
-	title, ok := tester.Find("Paste a link. Hear the music.")
+	title, ok := tester.Find("Now playing from")
 	if !ok {
 		t.Fatal("the page has no name")
 	}
@@ -239,7 +252,7 @@ func TestSidebarClearsTheHeader(t *testing.T) {
 			tester.Frame()
 
 			header := a.headerHeightInFrame(t, size.width, size.height)
-			library, ok := tester.Find("Library")
+			library, ok := tester.Find("LIBRARY")
 			if !ok {
 				t.Fatalf("the sidebar has no first section: %v", tester.Texts())
 			}
@@ -251,22 +264,22 @@ func TestSidebarClearsTheHeader(t *testing.T) {
 	}
 }
 
-// TestHeaderActionLinesUpWithThePage checks that the action in the header ends
-// where the page's own column does: an action floating at the window's edge
-// while the page stops short reads as two layouts.
-func TestHeaderActionLinesUpWithThePage(t *testing.T) {
+// TestHeaderStartsWhereThePageDoes checks that the header's own name begins at
+// the page's column edge: a header floating at the window's edge while the page
+// stops short reads as two layouts.
+func TestHeaderStartsWhereThePageDoes(t *testing.T) {
 	a := loaded(pageHome)
 	tester := ui.NewTester(a.frame, 1680, 980)
 	tester.Frame()
 
-	action, ok := tester.Find("Paste link")
+	name, ok := tester.Find("Playlist")
 	if !ok {
-		t.Fatalf("the header has no action: %v", tester.Texts())
+		t.Fatalf("the header has no name: %v", tester.Texts())
 	}
-	_, columnRight := pageColumn(t, a, 1680)
-	if diff := (action.X + action.W) - columnRight; diff > 2 || diff < -2 {
-		t.Errorf("the header's action ends at x=%.0f, the page's column at x=%.0f: they do not line up",
-			action.X+action.W, columnRight)
+	columnLeft, _ := pageColumn(t, a, 1680)
+	if diff := name.X - columnLeft; diff > 2 || diff < -2 {
+		t.Errorf("the header starts at x=%.0f, the page's column at x=%.0f: they do not line up",
+			name.X, columnLeft)
 	}
 }
 
@@ -277,7 +290,7 @@ func TestSettingsRowsShareTheGrid(t *testing.T) {
 	tester := ui.NewTester(a.frame, 1280, 840)
 	tester.Frame()
 
-	title, ok := tester.Find("Look")
+	title, ok := tester.Find("Appearance")
 	if !ok {
 		t.Fatalf("the page has no name: %v", tester.Texts())
 	}
@@ -297,7 +310,7 @@ func TestSettingsRowsShareTheGrid(t *testing.T) {
 // height: a list where one row is taller than the next looks broken, and a
 // selected row that grows as it is chosen is worse.
 func TestListRowsAreTheSameHeight(t *testing.T) {
-	a := loaded(pagePlaylist)
+	a := loaded(pageQueue)
 	tester := ui.NewTester(a.frame, 1280, 840)
 	tester.Frame()
 
@@ -321,7 +334,7 @@ func TestListRowsAreTheSameHeight(t *testing.T) {
 // TestThePlayingRowIsMarkedAndStillTheSameSize checks that the track that plays
 // is marked, and that marking it does not change its height.
 func TestThePlayingRowIsMarkedAndStillTheSameSize(t *testing.T) {
-	a := loaded(pagePlaylist)
+	a := loaded(pageQueue)
 	tester := ui.NewTester(a.frame, 1280, 840)
 	tester.Frame()
 
@@ -352,7 +365,7 @@ func TestTextScaleGrowsTheLayout(t *testing.T) {
 			if tester.Image() == nil {
 				t.Fatalf("nothing drew at a text scale of %.2f", scale)
 			}
-			if !tester.HasText("Paste a link. Hear the music.") {
+			if !tester.HasText("Now playing from") {
 				t.Errorf("the page's name is gone at a text scale of %.2f", scale)
 			}
 		})
@@ -389,7 +402,7 @@ func TestHighContrastDraws(t *testing.T) {
 	if tester.Image() == nil {
 		t.Fatal("nothing drew at high contrast")
 	}
-	if !tester.HasText("Paste a link. Hear the music.") {
+	if !tester.HasText("Now playing from") {
 		t.Error("the page's name is gone at high contrast")
 	}
 }
@@ -398,8 +411,17 @@ func TestHighContrastDraws(t *testing.T) {
 // appearance to be legible: a page that draws nothing in the dark is a page
 // whose colours were written by hand.
 func TestEveryPageDrawsInTheDark(t *testing.T) {
-	pages := []string{pageHome, pagePlaylist, pagePlayer, pageQueue, pageStats, pageAppearance}
-	for _, page := range pages {
+	// Each page has one thing it must show, in the dark as in the light: the
+	// words that say what the page is.
+	pages := []struct{ page, name string }{
+		{pageHome, "Now playing from"},
+		{pageQueue, "Songs"},
+		{pagePlayer, "It Will Rain"},
+		{pageStats, "Your listening"},
+		{pageAppearance, "Appearance"},
+	}
+	for _, tc := range pages {
+		page, name := tc.page, tc.name
 		t.Run(page, func(t *testing.T) {
 			a := loaded(page)
 			tester := ui.NewTester(a.frame, 1280, 840)
@@ -407,15 +429,6 @@ func TestEveryPageDrawsInTheDark(t *testing.T) {
 			tester.Frame()
 			if tester.Image() == nil {
 				t.Fatalf("the page %q drew nothing in the dark", page)
-			}
-			// The player names the track rather than the page, so it is the
-			// track that has to be there.
-			name := a.pageTitle()
-			if page == pageStats {
-				name = "Your listening"
-			}
-			if page == pagePlayer {
-				name = "It Will Rain"
 			}
 			if !tester.HasText(name) {
 				t.Errorf("the page %q shows no name in the dark: %v", page, tester.Texts())

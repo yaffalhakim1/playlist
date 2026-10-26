@@ -1,35 +1,49 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<title>Playlist — a native desktop player for YouTube playlists</title>
-<meta name="description" content="Paste a YouTube playlist link and it plays. A native desktop app for Windows, macOS and Linux, built with Go. No browser, no ads, no account. It remembers where you stopped, scrobbles to Last.fm, and starts a mix from any track.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Playlist, a desktop player for YouTube playlists</title>
+<meta name="description" content="Paste a YouTube playlist or mix link and it plays, in a window of its own. No browser tab, no ads, no account. A 12.6 MB native app for Windows, macOS and Linux, built in Go.">
 <link rel="canonical" href="https://yaffalhakim1.github.io/playlist/">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Playlist">
-<meta property="og:title" content="Playlist — a native desktop player for YouTube playlists">
-<meta property="og:description" content="Paste a YouTube playlist link and it plays. A native desktop app for Windows, macOS and Linux. No browser, no ads, no account.">
+<meta property="og:title" content="Playlist, a desktop player for YouTube playlists">
+<meta property="og:description" content="Paste a link and the playlist plays, in a window of its own. No browser tab, no ads, no account.">
 <meta property="og:url" content="https://yaffalhakim1.github.io/playlist/">
 <meta property="og:image" content="https://yaffalhakim1.github.io/playlist/assets/social.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
-<meta property="og:image:alt" content="The Playlist player, showing a track with its cover art and the queue beside it.">
+<meta property="og:image:alt" content="The Playlist window: a mix called It Will Rain, its four tracks, and the player bar along the bottom.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Playlist — a native desktop player for YouTube playlists">
-<meta name="twitter:description" content="Paste a YouTube playlist link and it plays. A native desktop app for Windows, macOS and Linux.">
+<meta name="twitter:title" content="Playlist, a desktop player for YouTube playlists">
+<meta name="twitter:description" content="Paste a link and the playlist plays, in a window of its own.">
 <meta name="twitter:image" content="https://yaffalhakim1.github.io/playlist/assets/social.png">
-
-<meta name="theme-color" content="#fcfbf9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#211f1c" media="(prefers-color-scheme: dark)">
 
 <link rel="icon" href="assets/favicon.ico" sizes="48x48">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#faf9f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131312" media="(prefers-color-scheme: dark)">
+
+<link rel="preload" href="assets/fonts/PlusJakartaSans-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/PlusJakartaSans-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/window-playlist.png" as="image" fetchpriority="high">
 <link rel="stylesheet" href="styles.css">
+
+<script>
+  /* The theme is settled before the first paint, so a dark reader never sees
+   * the light page flash white at them. */
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem("playlist-theme"); } catch (e) {}
+    var dark = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    if (dark) document.documentElement.setAttribute("data-theme", "dark");
+  })();
+</script>
 
 <script type="application/ld+json">
 {
@@ -37,294 +51,396 @@
   "@type": "SoftwareApplication",
   "name": "Playlist",
   "applicationCategory": "MultimediaApplication",
-  "operatingSystem": "Windows, macOS, Linux",
-  "description": "A native desktop player for YouTube playlists. Paste a link and it plays, without a browser, ads, or an account.",
+  "applicationSubCategory": "Music player",
+  "operatingSystem": "Windows 11, macOS, Linux",
+  "description": "A native desktop player for YouTube playlists and the mixes YouTube builds from a track. Paste a link and it plays, without a browser tab, an advertisement, or an account.",
   "url": "https://yaffalhakim1.github.io/playlist/",
   "downloadUrl": "https://github.com/yaffalhakim1/playlist/releases/latest",
-  "softwareVersion": "0.6.0",
-  "license": "https://github.com/yaffalhakim1/playlist",
+  "softwareVersion": "0.7.0",
+  "fileSize": "12.6MB",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "screenshot": "https://yaffalhakim1.github.io/playlist/assets/player.png",
+  "screenshot": "https://yaffalhakim1.github.io/playlist/assets/window-playlist.png",
   "featureList": [
-    "Plays YouTube playlists without a browser",
-    "Remembers the playlist and the place in the track",
-    "Shuffle, repeat, and a queue you can see",
-    "Last.fm scrobbling",
-    "Discord Rich Presence",
-    "Listening stats",
-    "Material 3 palettes, light and dark",
-    "Start a mix from any track"
+    "Plays a YouTube playlist or mix without a browser tab",
+    "Keeps a playlist on disk, so the second open needs no network",
+    "Reopens on the playlist and the second of the track you stopped at",
+    "Shuffle, repeat and a visible queue",
+    "Re-sync a playlist from YouTube when its list has moved on",
+    "Builds a mix around the track that is playing",
+    "Last.fm scrobbling and Discord Rich Presence",
+    "Counts the plays of every day",
+    "Light and dark, an accent, a tint taken from the cover, and a Mica backdrop"
   ]
 }
 </script>
-
-<script>
-  // Set the theme before the first paint, so the page never flashes the wrong
-  // one. It is inline and tiny on purpose: a separate file would arrive too
-  // late and the flash is exactly what this prevents.
-  (function () {
-    var saved = null;
-    try { saved = localStorage.getItem("theme"); } catch (e) {}
-    var dark = saved ? saved === "dark"
-      : window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
-    document.documentElement.classList.add("js");
-  })();
-</script>
 </head>
-
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
-<header class="site-head">
-  <a class="brand" href="./" aria-label="Playlist, home">
-    <img src="assets/b-small.svg" alt="" width="28" height="28" class="brand-mark">
-    <span>Playlist</span>
-  </a>
+<header class="nav" id="nav">
+  <div class="nav__pill">
+    <a class="wordmark" href="#top" aria-label="Playlist, back to the top">
+      <span class="wordmark__mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      Playlist
+    </a>
 
-  <nav aria-label="Sections">
-    <a href="#features">Features</a>
-    <a href="#screens">Screens</a>
-    <a href="#download">Download</a>
-  </nav>
+    <nav class="nav__links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#tour">The window</a>
+      <a href="#questions">Questions</a>
+    </nav>
 
-  <button class="theme" id="theme-toggle" type="button" aria-live="polite">
-    <span class="theme-icon" aria-hidden="true"></span>
-    <span class="theme-label">Dark</span>
-  </button>
+    <div class="nav__tools">
+      <button class="theme-toggle" type="button" id="theme-toggle" aria-label="Switch to the dark theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"></path>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.4 8.4 0 1 0 10.2 10.2Z"></path>
+        </svg>
+      </button>
+
+      <a class="btn btn--primary btn--small" href="https://github.com/yaffalhakim1/playlist/releases/latest" data-download>Download</a>
+
+      <button class="nav__burger" type="button" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="menu">
+        <i></i><i></i><i></i>
+      </button>
+    </div>
+  </div>
 </header>
+
+<div class="menu" id="menu" data-open="false">
+  <a href="#how">How it works</a>
+  <a href="#tour">The window</a>
+  <a href="#questions">Questions</a>
+  <a href="https://github.com/yaffalhakim1/playlist/releases/latest" data-download>Download</a>
+</div>
 
 <main id="main">
 
-  <!-- The hero. The promise is the product's own: paste a link, it plays. -->
-  <section class="hero" aria-labelledby="hero-title">
-    <h1 id="hero-title">Paste a link.<br>It plays.</h1>
-    <p class="lede">
-      A native desktop player for YouTube playlists. Not a browser tab, not a
-      wrapper around one: a window that plays the music and nothing else. No
-      ads, no account, no web page loading behind the sound.
-    </p>
-
-    <div class="cta">
-      <a class="button button-primary" id="download-top"
-         href="https://github.com/yaffalhakim1/playlist/releases/latest">
-        Download
-      </a>
-      <a class="button button-quiet"
-         href="https://github.com/yaffalhakim1/playlist">Source on GitHub</a>
-    </div>
-    <p class="cta-note" id="cta-note">
-      Free and open source. Windows, macOS and Linux.
-    </p>
-
-    <figure class="shot shot-hero reveal">
-      <picture>
-        <img src="assets/player.png" data-light="assets/player.png" data-dark="assets/player-dark.png"
-             alt="The Playlist player: cover art, the track title and artist, a seek bar at 1:37 of 3:42, the transport controls, and the queue beside it."
-             width="1280" height="840" fetchpriority="high" decoding="async">
-      </picture>
-    </figure>
-  </section>
-
-  <!-- One statement about what makes it different, before the feature list. -->
-  <section class="claim" aria-label="How it works">
-    <p>
-      The playlist is read from YouTube's own catalogue, the audio is found by
-      <code>yt-dlp</code> and decoded by <code>ffmpeg</code>, and the sound goes
-      straight to your speakers. The video never loads.
-    </p>
-  </section>
-
-  <section id="features" class="features" aria-labelledby="features-title">
-    <h2 id="features-title">What it does</h2>
-
-    <div class="feature-grid">
-      <article class="feature feature-wide">
-        <h3>It picks up where you stopped</h3>
-        <p>
-          Close the window and the music keeps playing from the notification
-          area. Quit it and the next run opens the same playlist, on the same
-          track, at the same second.
+  <section class="hero" id="top" aria-labelledby="hero-h">
+    <div class="container">
+      <div class="hero__text">
+        <p class="eyebrow reveal">A player, not a tab</p>
+        <h1 id="hero-h">Paste a link.<br>The playlist plays.</h1>
+        <p class="lead hero__lead reveal" data-delay="1">
+          YouTube playlists and the mixes built from a track, in a window of their own.
+          No browser tab, no advertisements, no account.
         </p>
-      </article>
-
-      <article class="feature">
-        <h3>It plays without the network</h3>
-        <p>
-          A playlist you have opened is kept on disk, so opening it again costs
-          no network at all.
+        <div class="hero__action reveal" data-delay="2">
+          <a class="btn btn--primary" href="https://github.com/yaffalhakim1/playlist/releases/latest" data-download>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5M4.5 19.5h15"></path>
+            </svg>
+            Download Playlist
+          </a>
+          <a class="btn btn--quiet" href="#tour">See the window</a>
+        </div>
+        <p class="hero__facts reveal" data-delay="3">
+          <span>Version 0.7.0</span>
+          <span>12.6 MB</span>
+          <span>Windows, macOS, Linux</span>
+          <span>No account</span>
         </p>
-      </article>
+      </div>
 
-      <article class="feature">
-        <h3>It survives a dropped connection</h3>
-        <p>
-          When a stream breaks mid-song, the app finds it again and plays on
-          from where it stopped, instead of skipping the track.
-        </p>
-      </article>
-
-      <article class="feature">
-        <h3>A mix from any track</h3>
-        <p>
-          One button on the player builds the mix YouTube generates around what
-          you are hearing. It needs no account.
-        </p>
-      </article>
-
-      <article class="feature">
-        <h3>Last.fm, if you want it</h3>
-        <p>
-          Scrobbles what you hear, once half the track or four minutes has
-          played. Plays that cannot be sent wait on disk until they can.
-        </p>
-      </article>
-
-      <article class="feature feature-wide">
-        <h3>And what plays shows in Discord</h3>
-        <p>
-          The track, the artist, the album and a progress bar, in the panel
-          your friends already see. With a time bar, not a stopwatch.
-        </p>
-      </article>
-    </div>
-  </section>
-
-  <!-- Two appearances, shown together rather than swapped: the difference is
-       the point, and hiding one would hide it. -->
-  <section class="appearances" aria-labelledby="appearances-title">
-    <h2 id="appearances-title">Light, dark, or your desktop's choice</h2>
-    <p class="section-lede">
-      Eight Material 3 palettes, each with a light and a dark scheme. The accent
-      can be yours, or taken from the cover of the track that is playing.
-    </p>
-
-    <div class="pair">
-      <figure class="shot reveal">
-        <img src="assets/home.png" alt="The home page in light: the link field, and the playlists played before."
-             width="1280" height="840" loading="lazy" decoding="async">
-        <figcaption>Light</figcaption>
-      </figure>
-      <figure class="shot reveal">
-        <img src="assets/home-dark.png" alt="The same home page in dark, with the cream background and dark ink reversed."
-             width="1280" height="840" loading="lazy" decoding="async">
-        <figcaption>Dark</figcaption>
+      <figure class="window reveal" data-delay="2" data-blur="true">
+        <img src="assets/window-playlist.png" width="1280" height="840" fetchpriority="high"
+             alt="The Playlist window on a mix called It Will Rain. The sidebar lists Home, Player, Listen Now, History and Appearance, then the playlists opened before. The page shows the cover, four tracks with their artists, albums and lengths, and the player bar across the bottom at 1 minute 37 seconds of 3 minutes 42.">
+        <figcaption>
+          <span>A mix, read from YouTube in about a second.</span>
+          <span>4 tracks, 13 minutes 54 seconds</span>
+        </figcaption>
       </figure>
     </div>
   </section>
 
-  <section id="screens" class="gallery" aria-labelledby="screens-title">
-    <h2 id="screens-title">Every page</h2>
-    <p class="section-lede">
-      Six pages, one window. The sidebar is the whole navigation.
-    </p>
-
-    <div class="gallery-grid">
-      <figure class="shot reveal">
-        <picture>
-          <img src="assets/playlist.png" data-light="assets/playlist.png" data-dark="assets/playlist-dark.png"
-               alt="The playlist page: the cover, the title, and the songs with their artists and lengths."
-               width="1280" height="840" loading="lazy" decoding="async">
-        </picture>
-        <figcaption>The playlist, and its songs</figcaption>
-      </figure>
-
-      <figure class="shot reveal">
-        <picture>
-          <img src="assets/stats.png" data-light="assets/stats.png" data-dark="assets/stats-dark.png"
-               alt="The stats page: one headline about the period, three facts, and a chart of plays per day."
-               width="1280" height="840" loading="lazy" decoding="async">
-        </picture>
-        <figcaption>What you listened to</figcaption>
-      </figure>
-
-      <figure class="shot reveal">
-        <picture>
-          <img src="assets/look.png" data-light="assets/look.png" data-dark="assets/look-dark.png"
-               alt="The Look page: appearance, palette swatches, accent colours, and the queue settings."
-               width="1280" height="840" loading="lazy" decoding="async">
-        </picture>
-        <figcaption>The theme, and the queue</figcaption>
-      </figure>
+  <section class="tagline" aria-labelledby="tagline-h">
+    <div class="container">
+      <h2 class="visually-hidden" id="tagline-h">What the app is for</h2>
+      <p data-tagline>One window. One list. <span class="mark">One big play button.</span></p>
     </div>
   </section>
 
-  <section id="download" class="download" aria-labelledby="download-title">
-    <h2 id="download-title">Download</h2>
-    <p class="section-lede">
-      Version 0.6.0. Pick the file for your machine; the release page has them
-      all, and each one installs.
-    </p>
+  <section class="section" id="how" aria-labelledby="how-h">
+    <div class="container">
+      <p class="eyebrow reveal">Three steps, once</p>
+      <h2 class="headline reveal" id="how-h" data-delay="1" style="margin-top: var(--s-3); max-width: 24ch;">
+        A link in, music out. Nothing to sign into.
+      </h2>
 
-    <ul class="platforms">
-      <li>
-        <span class="platform-name">Windows</span>
-        <span class="platform-file"><code>Playlist Setup 0.6.0 amd64.exe</code></span>
-        <span class="platform-note">An installer. No terminal opens.</span>
-      </li>
-      <li>
-        <span class="platform-name">macOS, Apple silicon</span>
-        <span class="platform-file"><code>Playlist 0.6.0 arm64.dmg</code></span>
-        <span class="platform-note">Open it, drag to Applications.</span>
-      </li>
-      <li>
-        <span class="platform-name">macOS, Intel</span>
-        <span class="platform-file"><code>Playlist 0.6.0 amd64.dmg</code></span>
-        <span class="platform-note">The same.</span>
-      </li>
-      <li>
-        <span class="platform-name">Debian, Ubuntu</span>
-        <span class="platform-file"><code>playlist_0.6.0_amd64.deb</code></span>
-        <span class="platform-note">Or install it from your file manager.</span>
-      </li>
-      <li>
-        <span class="platform-name">Other Linux</span>
-        <span class="platform-file"><code>playlist-0.6.0-linux-amd64.tar.gz</code></span>
-        <span class="platform-note">Unpack, then run <code>./install.sh</code>.</span>
-      </li>
-    </ul>
+      <ol class="steps">
+        <li class="step reveal" data-delay="1">
+          <h3>Paste the link</h3>
+          <p>Any YouTube playlist or mix. The app reads the title, the artist, the album and the length of every track before it plays a note.</p>
+        </li>
+        <li class="step reveal" data-delay="2">
+          <h3>It finds the audio</h3>
+          <p>yt-dlp resolves the stream and ffmpeg decodes it. The video never loads, so a playlist costs a fraction of the bandwidth of a tab.</p>
+        </li>
+        <li class="step reveal" data-delay="3">
+          <h3>It stays put</h3>
+          <p>Close the window and the music keeps playing from the notification area. Quit, and the next run opens the same track at the same second.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
 
-    <p class="button-row">
-      <a class="button button-primary"
-         href="https://github.com/yaffalhakim1/playlist/releases/latest">
-        All downloads
-      </a>
-    </p>
+  <section class="section section--tight" aria-labelledby="why-h">
+    <div class="container">
+      <p class="eyebrow reveal">What you get</p>
+      <h2 class="headline reveal" id="why-h" data-delay="1" style="margin-top: var(--s-3); max-width: 26ch;">
+        The parts of a music app that are worth keeping.
+      </h2>
 
-    <div class="requirements">
-      <h3>Before it will play</h3>
-      <p>
-        Two programs have to be on your <code>PATH</code>, and the app says so
-        plainly when one is missing:
-      </p>
-      <ul>
-        <li><a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a>, which finds the audio of a track</li>
-        <li><a href="https://ffmpeg.org">ffmpeg</a>, which decodes it</li>
-      </ul>
-      <p class="small">
-        The macOS builds are ad-hoc signed, not notarized, so the first launch
-        needs right-click, Open.
-      </p>
+      <div class="benefits">
+        <article class="benefit reveal" data-delay="1">
+          <span class="benefit__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1.2 1.2"></path>
+              <path d="M14 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1.2-1.2"></path>
+            </svg>
+          </span>
+          <h3>It picks up where you stopped</h3>
+          <p>The playlist, the track and the second are written to disk as you listen. Reopening the app lands you in the same place, not at the top of the queue.</p>
+        </article>
+
+        <article class="benefit reveal" data-delay="2">
+          <span class="benefit__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3.5" y="4.5" width="17" height="6" rx="2"></rect>
+              <rect x="3.5" y="13.5" width="17" height="6" rx="2"></rect>
+              <path d="M7 7.5h.01M7 16.5h.01"></path>
+            </svg>
+          </span>
+          <h3>A second open costs no network</h3>
+          <p>Ten playlists are kept on disk with their tracks, artists and lengths. Opening one again is instant, even on a train with no signal.</p>
+        </article>
+
+        <article class="benefit reveal" data-delay="3">
+          <span class="benefit__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12h2.5l2-6 3 12 2.5-9 2 5H21"></path>
+            </svg>
+          </span>
+          <h3>It survives a dropped stream</h3>
+          <p>When a connection breaks mid song, the app finds the stream again and carries on from the same place, instead of skipping the track or stopping.</p>
+        </article>
+
+        <article class="benefit reveal" data-delay="4">
+          <span class="benefit__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1-.7-1.4-.7-2.3 0-.8.7-1.5 1.6-1.5h1.6a4.2 4.2 0 0 0 4.2-4.2c0-4-3.7-7.3-8.5-7.3Z"></path>
+              <circle cx="8" cy="10" r="1"></circle>
+              <circle cx="12" cy="7.6" r="1"></circle>
+              <circle cx="16" cy="9.4" r="1"></circle>
+            </svg>
+          </span>
+          <h3>It looks like your desktop</h3>
+          <p>Light, dark, or whatever the desktop is set to. An accent, a tint taken from the cover of the track that plays, and a Mica backdrop on Windows 11.</p>
+        </article>
+      </div>
+
+      <dl class="proof reveal">
+        <div>
+          <dt>The download</dt>
+          <dd>4.1 MB</dd>
+        </div>
+        <div>
+          <dt>Installed</dt>
+          <dd>12.6 MB</dd>
+        </div>
+        <div>
+          <dt>Platforms built by CI</dt>
+          <dd>4</dd>
+        </div>
+        <div>
+          <dt>Accounts needed</dt>
+          <dd>None</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="section" id="tour" aria-labelledby="tour-h">
+    <div class="container">
+      <p class="eyebrow reveal">The whole app</p>
+      <h2 class="headline reveal" id="tour-h" data-delay="1" style="margin-top: var(--s-3); max-width: 22ch;">
+        Four pages, and the bar underneath all of them.
+      </h2>
+
+      <div class="tour">
+        <article class="tour__item reveal">
+          <div class="tour__text">
+            <h3>Paste, then read the list</h3>
+            <p>The field takes a link and becomes Play. The playlist arrives with its cover, its name, how many tracks and how long, and a table you can filter by title, artist or album as you type.</p>
+          </div>
+          <figure class="window">
+            <img src="assets/window-home.png" width="1280" height="840" loading="lazy"
+                 alt="The home page. A field at the top reads Paste a YouTube playlist or radio link, with an Extract Playlist button. Below it, the open mix with its cover, Play all and Open queue, and the first four tracks in a table.">
+          </figure>
+        </article>
+
+        <article class="tour__item reveal">
+          <div class="tour__text">
+            <h3>The list itself</h3>
+            <p>Every track, with its artist, its album and its length. The row that plays says so with four moving bars rather than a colour you have to learn.</p>
+          </div>
+          <figure class="window">
+            <img src="assets/window-playlist-dark.png" width="1280" height="840" loading="lazy"
+                 alt="The playlist page in the dark theme. The same mix, its cover, Play all, Re-sync, a filter field, and four tracks. The playing row carries a small equaliser glyph.">
+          </figure>
+        </article>
+
+        <article class="tour__item reveal">
+          <div class="tour__text">
+            <h3>The track, big</h3>
+            <p>Cover, name, artist and album at the size they deserve, a seek bar you can drag, and the queue beside it so you always know what follows. Start a mix here when the list runs out.</p>
+          </div>
+          <figure class="window">
+            <img src="assets/window-player.png" width="1280" height="840" loading="lazy"
+                 alt="The player page. A large cover, the track name and its artist, a seek bar at 1 minute 37 of 3 minutes 42, the transport controls, and an Up next panel holding the other three tracks.">
+          </figure>
+        </article>
+
+        <article class="tour__item reveal">
+          <div class="tour__text">
+            <h3>What you listened to</h3>
+            <p>Plays per day for the last two weeks, the artist and the track you played most, the hour you listen at, and how many days in a row. It fills in as you listen, and never leaves the machine.</p>
+          </div>
+          <figure class="window">
+            <img src="assets/window-stats.png" width="1280" height="840" loading="lazy"
+                 alt="The history page: two hours six minutes of music, the top artist Bruno Mars with 22 plays, the top track It Will Rain with 16, six days in a row, and a bar chart of plays per day from October 13 to October 26.">
+          </figure>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight" aria-labelledby="accent-h">
+    <div class="container">
+      <div class="accents reveal">
+        <div class="accents__text">
+          <h3 id="accent-h">Pick a tone. The window wears it.</h3>
+          <p>The accent colours the play button, the seek bar and what is selected. Leave it alone and the app takes the tone from the cover of the track that is playing, so the window changes colour with the music.</p>
+        </div>
+        <div class="swatches" role="group" aria-label="Accent colour">
+          <button class="swatch" type="button" data-accent="#1c1c1a" style="--swatch: #1c1c1a" aria-pressed="true"><span class="swatch__name">Ink</span></button>
+          <button class="swatch" type="button" data-accent="#b86a51" style="--swatch: #b86a51" aria-pressed="false"><span class="swatch__name">Clay</span></button>
+          <button class="swatch" type="button" data-accent="#6b7a68" style="--swatch: #6b7a68" aria-pressed="false"><span class="swatch__name">Sage</span></button>
+          <button class="swatch" type="button" data-accent="#566e7c" style="--swatch: #566e7c" aria-pressed="false"><span class="swatch__name">Slate</span></button>
+          <button class="swatch" type="button" data-accent="#b08848" style="--swatch: #b08848" aria-pressed="false"><span class="swatch__name">Ochre</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="questions" aria-labelledby="questions-h">
+    <div class="container">
+      <p class="eyebrow reveal">Before you download</p>
+      <h2 class="headline reveal" id="questions-h" data-delay="1" style="margin-top: var(--s-3); max-width: 26ch;">
+        Two programs, and then it just plays.
+      </h2>
+
+      <div class="faq reveal">
+        <details>
+          <summary>Do I need to install anything else?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </summary>
+          <p>Yes, two programs have to be on your <code>PATH</code>: <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a>, which resolves the audio of a track, and <a href="https://ffmpeg.org">ffmpeg</a>, which decodes the stream into sound. The app names whichever one is missing rather than failing quietly. The playlist data itself needs neither.</p>
+        </details>
+
+        <details>
+          <summary>Does it download the video?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </summary>
+          <p>No. It asks for the audio stream and decodes only that, so the video is never fetched and never written to disk. Nothing is kept after a track ends: what stays on disk is the playlist data, not the music.</p>
+        </details>
+
+        <details>
+          <summary>Do I need a YouTube or Google account?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </summary>
+          <p>No. The app reads playlists from InnerTube, the interface YouTube's own clients use, without signing in. It also means your subscriptions and your history are not part of what it knows.</p>
+        </details>
+
+        <details>
+          <summary>Will it keep playing when I close the window?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </summary>
+          <p>Yes. Closing the window puts the app in the notification area, where its menu can play, pause and skip, and where a click brings the window back. The media keys on your keyboard work from any application. Quitting from that menu is the only way to stop it.</p>
+        </details>
+
+        <details>
+          <summary>Can I use it offline?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </summary>
+          <p>Partly, and the app is honest about which part. A playlist you have already opened loads from disk with no network at all, so you can read the list on a plane. Playing a track still needs a connection, because the audio is streamed rather than saved.</p>
+        </details>
+
+        <details>
+          <summary>What about macOS and Linux?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </summary>
+          <p>The release builds four: a Windows installer, a macOS app for Apple silicon and one for Intel, and a Linux package. Windows gets the most attention, because it is the desktop the app is used on daily, so the Mica backdrop and the installer are Windows first.</p>
+        </details>
+
+        <details>
+          <summary>What does it cost?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          </summary>
+          <p>Nothing. There is no account, no trial, no upgrade and no telemetry. The source is on <a href="https://github.com/yaffalhakim1/playlist">GitHub</a>, and the app is built with <a href="https://mygo.egoist.dev">MyGo</a>: a native window, a native theme, no webview anywhere in it.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="close" aria-labelledby="close-h">
+    <div class="container close__grid">
+      <div class="close__text">
+        <h2 id="close-h">Paste a link. Press play.</h2>
+        <p>The installer is 4.1 MB and there is nothing to configure. If yt-dlp and ffmpeg are already on your machine, the first playlist plays in about a second.</p>
+        <a class="btn btn--primary" href="https://github.com/yaffalhakim1/playlist/releases/latest" data-download>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5M4.5 19.5h15"></path>
+          </svg>
+          Download for Windows
+        </a>
+        <p class="caption">Version 0.7.0. macOS and Linux builds are on the same release page.</p>
+      </div>
+
+      <figure class="window">
+        <img src="assets/window-appearance.png" width="1280" height="840" loading="lazy"
+             alt="The appearance page: theme previews for Light, Dark and Auto with Auto selected, and an accent colour row of five tones.">
+      </figure>
     </div>
   </section>
 
 </main>
 
-<footer class="site-foot">
-  <div class="foot-brand">
-    <img src="assets/b-small.svg" alt="" width="24" height="24">
-    <span>Playlist</span>
+<footer class="foot">
+  <div class="container">
+    <div class="foot__grid">
+      <a class="foot__mark" href="#top">
+        <span class="wordmark__mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        Playlist
+      </a>
+      <nav class="foot__links" aria-label="Footer">
+        <a href="#how">How it works</a>
+        <a href="#tour">The window</a>
+        <a href="#questions">Questions</a>
+        <a href="https://github.com/yaffalhakim1/playlist">Source</a>
+        <a href="https://github.com/yaffalhakim1/playlist/releases">Releases</a>
+      </nav>
+      <p class="foot__line">
+        Playlist, 2026. An independent project. Not made by, endorsed by, or supported by YouTube or Google.
+        Plus Jakarta Sans is used under the SIL Open Font License.
+      </p>
+    </div>
   </div>
-  <nav aria-label="Elsewhere">
-    <a href="https://github.com/yaffalhakim1/playlist">GitHub</a>
-    <a href="https://github.com/yaffalhakim1/playlist/releases">Releases</a>
-    <a href="https://github.com/yaffalhakim1/playlist/tree/main/docs">Documentation</a>
-  </nav>
-  <p class="small">
-    An independent project. Not made, endorsed or supported by YouTube or Google.
-  </p>
 </footer>
 
-<script src="main.js"></script>
+<script src="main.js" defer></script>
 </body>
 </html>

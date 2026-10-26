@@ -39,21 +39,28 @@ jobs:
           set -e
           # The files the page needs, and the ones a crawler looks for. A broken
           # link here is a page that 404s on its own screenshot.
-          for f in index.html styles.css main.js sitemap.xml robots.txt site.webmanifest \
-                   assets/social.png assets/b-small.svg assets/player.png \
-                   assets/home.png assets/home-dark.png assets/playlist.png \
-                   assets/stats.png assets/look.png assets/favicon.svg \
-                   assets/favicon.ico assets/apple-touch-icon.png; do
+          for f in index.html styles.css tokens.css base.css main.js sitemap.xml \
+                   robots.txt site.webmanifest assets/social.png assets/b-small.svg \
+                   assets/favicon.svg assets/favicon.ico assets/apple-touch-icon.png \
+                   assets/window-playlist.png assets/window-playlist-dark.png \
+                   assets/window-player.png assets/window-home.png \
+                   assets/window-appearance.png assets/window-stats.png \
+                   assets/fonts/PlusJakartaSans-Regular.woff2 \
+                   assets/fonts/PlusJakartaSans-Medium.woff2 \
+                   assets/fonts/PlusJakartaSans-SemiBold.woff2 \
+                   assets/fonts/PlusJakartaSans-Bold.woff2 \
+                   assets/fonts/OFL.txt; do
             if [ ! -f "site/$f" ]; then
               echo "missing site/$f" >&2
               exit 1
             fi
           done
-          # Every asset the HTML references has to exist, or the page ships a
-          # broken image.
-          grep -o 'assets/[A-Za-z0-9._-]*' site/index.html | sort -u | while read -r ref; do
+          # Every asset the HTML, the CSS and the script reference has to exist,
+          # or the page ships a broken image or a silent fallback font.
+          grep -oh 'assets/[A-Za-z0-9._/-]*' site/index.html site/*.css site/main.js \
+            | sort -u | while read -r ref; do
             if [ ! -f "site/$ref" ]; then
-              echo "index.html references $ref, which is not in site/" >&2
+              echo "the page references $ref, which is not in site/" >&2
               exit 1
             fi
           done

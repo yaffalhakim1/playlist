@@ -1,104 +1,269 @@
 package src
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/egoist/mygo/ui"
-	"github.com/oneo-me/onevra/source/components"
-	"github.com/oneo-me/onevra/source/icons/lucide"
 
 	"youtube-playlist/internal/library"
 )
 
-// homePage draws the page one lands on: the link to play, and what was
-// played before.
+// homePage draws the page one lands on: the link to play, the playlist that is
+// open, and what was played before.
 //
-// It has one job, so it says it once and leaves the rest of the page quiet:
-// a name, a line about what the app does, the field, and the playlists that
-// were played before as pictures you recognise before you read.
+// The page is one column of cards on the paper: an import row, the hero of the
+// playlist that is open, its tracks, the playlists played before, and a shelf of
+// them to pick up again. Every section is real: the hero is the playlist the app
+// has loaded, the tracklist is its queue, and the shelf is what the app
+// remembers.
 func (a *app) homePage(c *ui.Context) {
 	t := c.Theme()
 	a.pageFrame(c, true, func() {
-		ui.Column(c).FillWidth().Gap(t.Space(10)).Children(func() {
-			a.homeHero(c)
+		ui.Column(c).FillWidth().Gap(t.Space(8)).Children(func() {
+			a.importRow(c)
+			if len(a.queue) > 0 {
+				a.homeHero(c)
+				a.homeTracks(c)
+			}
 			if len(a.recents) > 0 {
 				a.homeRecents(c)
-			}
-			if len(a.queue) > 0 {
-				a.homePlaying(c)
+				a.homeShelf(c)
 			}
 		})
 	})
 }
 
-// homeHero is what the app does, and the field that does it.
+// importRow is the design's link bar: the field, the button that reads it, and a
+// clear button while it holds anything.
 //
-// No label sits above the headline: the sentence is the label, and a tracked
-// caption over it would only repeat the word "playlist" twice before saying
-// anything.
+// It has three states and shows all of them: empty, it invites a paste; holding a
+// link, it offers Play; and while a playlist is read, the button says so and
+// cannot be pressed again.
+func (a *app) importRow(c *ui.Context) {
+	s := surface(c)
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(t.Space(2)).Children(func() {
+		ui.Row(c).FillWidth().Gap(t.Space(2)).Padding(t.Space(2.5)).
+			Radius(radiusCard(t)).Background(s.card()).Border(1, s.hairline()).
+			Shadow(0, 1, 4, 0, s.shadow()).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Grow(1).MinWidth(0).Gap(t.Space(2.5)).AlignItems(ui.Center).
+				Padding(0, 0, 0, t.Space(3)).Children(func() {
+				ui.Icon(c, iconLink).Size(t.Space(4), t.Space(4)).TextColor(s.faint())
+				field := ui.TextInput(c, &a.link).Grow(1).Border(0, ui.Transparent).
+					Background(ui.Transparent).Padding(0).FontSize(t.Rem(remCaption)).
+					Label("Playlist link").
+					Placeholder("Paste a YouTube playlist or radio link…")
+				field.Disabled(a.loading)
+				if field.Submitted() {
+					a.load()
+				}
+				if !a.linkEmpty() && !a.loading {
+					if b := iconButton(c, iconClose, "Clear"); b.Clicked() {
+						a.link = ""
+					}
+				}
+			})
+			a.importAction(c)
+		})
+		a.loadLine(c)
+	})
+}
+
+// loadLine is the one line under the field: what is being read, or what went
+// wrong. The two never speak together, because a load in flight clears the status
+// and a failure stops the spinner.
+func (a *app) loadLine(c *ui.Context) {
+	s := surface(c)
+	t := c.Theme()
+	switch {
+	case a.loading:
+		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Spinner(c).Size(t.Space(3.5), t.Space(3.5)).TextColor(s.muted())
+			ui.Text(c, "Reading the playlist. A long one takes a few seconds.").
+				FontSize(t.Rem(remCaption)).TextColor(s.muted())
+		})
+	case a.status != "":
+		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, iconWarning).Size(t.Space(4), t.Space(4)).TextColor(s.danger())
+			ui.Text(c, a.status).FontSize(t.Rem(remCaption)).
+				TextColor(s.danger()).MaxLines(2).Ellipsis("…")
+		})
+	}
+}
+
+// importAction is the button beside the field, in one of three states.
+//
+// Building the first and then replacing the variable would leave both in the row:
+// the element is already a child by the time it is reassigned.
+func (a *app) importAction(c *ui.Context) {
+	switch {
+	case a.loading:
+		busyButton(c, "Reading the playlist…")
+	case a.linkEmpty():
+		if b := primaryButton(c, iconSparkle, "Extract Playlist"); b.Clicked() {
+			a.pasteLink()
+		}
+	default:
+		if b := primaryButton(c, iconSparkle, "Extract Playlist"); b.Clicked() {
+			a.load()
+		}
+	}
+}
+
+// homeHero is the playlist that is open: its cover, what it is, and what can be
+// done with it.
 func (a *app) homeHero(c *ui.Context) {
 	s := surface(c)
 	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(t.Space(3)).Padding(0, 0, t.Space(4)).Children(func() {
-		components.Text(c, "Paste a link. Hear the music.").
-			FontSize(t.Rem(remDisplay)).FontWeight(600).
-			LetterSpacing(trackDisplay(t)).LineHeight(leadDisplay).
-			MaxLines(2).MaxWidth(t.Space(120))
-		body(c, "A playlist of YouTube Music, or any playlist of YouTube. The music plays; the video never shows.").
-			MaxLines(2)
+	title := "Playlist"
+	var thumbnail string
+	if a.playlist != nil {
+		title = a.playlist.Title
+		thumbnail = a.playlist.Thumbnail
+	}
+	panel(c, func() {
+		ui.Row(c).FillWidth().Gap(t.Space(6)).AlignItems(ui.End).Children(func() {
+			a.picture(c, thumbnail, t.Space(48), radiusCard(t))
+			ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(2)).Children(func() {
+				ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+					eyebrow(c, "Now playing from")
+					ui.Text(c, "•").FontSize(t.Rem(remCaption)).TextColor(s.faint())
+					if b := iconButton(c, iconMore, "More"); b.Clicked() {
+						a.page = pageQueue
+					}
+				})
+				ui.Text(c, title).FontSize(t.Rem(remDisplay)).FontWeight(700).
+					LetterSpacing(trackDisplay(t)).LineHeight(leadDisplay).
+					MaxLines(2).Ellipsis("…").TextColor(s.text())
+				caption(c, fmt.Sprintf("%d tracks · %s · %s",
+					len(a.queue), totalLength(a.queue), a.nowPlayingLine()))
 
-		ui.Row(c).FillWidth().Gap(t.Space(3)).AlignItems(ui.Center).
-			Padding(0, t.Space(1), 0, 0).Children(func() {
-			box := components.TextBox(c, &a.link, components.TextBoxOptions{LeadingIcon: lucide.Link()})
-			box.Grow(1).Radius(radiusPill(t)).Height(t.Space(11)).
-				Label("Playlist link").
-				Placeholder("https://music.youtube.com/playlist?list=…").
-				OnSubmit(func() { a.load() })
-			box.Disabled(a.loading)
-
-			// One button, in one of two states. Building the first and then
-			// replacing the variable would leave both in the row: the element
-			// is already a child by the time it is reassigned.
-			if a.loading {
-				busy := primaryButton(c, lucide.Play(), "Reading the playlist…")
-				busy.Disabled(true)
-			} else if play := primaryButton(c, lucide.Play(), "Play"); play.Clicked() {
-				a.load()
-			}
+				ui.Row(c).Gap(t.Space(2.5)).AlignItems(ui.Center).
+					Padding(t.Space(2), 0, 0, 0).Children(func() {
+					a.playToggle(c, t.Space(9))
+					if b := secondaryButton(c, nil, "Open queue"); b.Clicked() {
+						a.page = pageQueue
+					}
+					if b := secondaryButton(c, iconExport, "Start a mix"); b.Clicked() {
+						a.playMix()
+					}
+				})
+			})
 		})
-		// While a playlist is being read, one line under the field says so.
-		// The status line below is for what went wrong, so the two never both
-		// speak: a load in flight clears the status, and a failure stops the
-		// spinner.
-		if a.loading {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				components.Spinner(c, components.SpinnerSpokes).Size(t.Space(4), t.Space(4))
-				components.Text(c, "Reading the playlist. A long one takes a few seconds.").
-					FontSize(t.Rem(remCaption)).TextColor(s.muted())
-			})
-		} else if a.status != "" {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				components.Icon(c, lucide.AudioLines()).Size(t.Space(4), t.Space(4)).
-					TextColor(t.Danger)
-				components.Text(c, a.status).FontSize(t.Rem(remCaption)).
-					TextColor(t.Danger).MaxLines(2).Ellipsis("…")
-			})
-		}
 	})
 }
 
-// homeRecents draws the playlists that were played before, as a shelf that
-// starts at the page's own left edge and runs off the right: the covers are
-// what is recognised, so they are large, and the row is scrolled sideways
-// rather than wrapping into a second row of smaller ones.
+// nowPlayingLine names what plays, for the hero's caption.
+func (a *app) nowPlayingLine() string {
+	track := a.currentTrack()
+	if track.Title == "" {
+		return "nothing playing"
+	}
+	if track.Artist != "" {
+		return track.Artist
+	}
+	return "playing"
+}
+
+// playToggle is the round filled button that plays or holds the queue.
+func (a *app) playToggle(c *ui.Context, size float32) {
+	s := surface(c)
+	t := c.Theme()
+	playing := a.isPlaying()
+	b := ui.ButtonBase(c).Size(size, size).Radius(size / 2).Center().
+		Label("Play or hold")
+	face := s.ink()
+	if b.Hovered() {
+		face = t.AccentHover
+	}
+	if b.Pressed() {
+		face = t.AccentPressed
+	}
+	b.Background(b.AnimateColor("face", face, motionColor))
+	b.AnimatePose(pressPose(b.Pressed()), motionPress)
+	b.Disabled(len(a.queue) == 0)
+	b.Children(func() {
+		mark := iconPlay
+		if playing {
+			mark = iconPause
+		}
+		ui.Icon(c, mark).Size(size*0.42, size*0.42).TextColor(s.onInk())
+	})
+	if b.Clicked() {
+		a.engine.Toggle()
+	}
+}
+
+// homeTracks is the playlist's tracks as a table: a title column, the artist, the
+// album, and the length at the right.
+//
+// It is the design's table, and it is the queue: the same rows the Queue page
+// shows, cut to what fits on the page so the home page stays one screen of
+// scanning.
+func (a *app) homeTracks(c *ui.Context) {
+	s := surface(c)
+	t := c.Theme()
+	shown := min(len(a.visible), homeTrackLimit)
+	panel(c, func() {
+		ui.Column(c).FillWidth().Gap(0).Children(func() {
+			// The header row.
+			ui.Row(c).FillWidth().Gap(t.Space(4)).Padding(t.Space(3), t.Space(4)).
+				BorderWidth(0, 0, 1, 0).BorderColor(s.hairline()).Children(func() {
+				trackHead(c, "Title", true)
+				trackHead(c, "Artist", false)
+				trackHead(c, "Album / Tape", false)
+				ui.Box(c).Width(t.Space(12)).Children(func() {
+					ui.Text(c, "Duration").FontSize(t.Rem(remCaption)).FontWeight(600).
+						LetterSpacing(0.06 * t.Rem(remCaption)).TextColor(s.muted()).
+						TextAlign(ui.End).Grow(1)
+				})
+			})
+			for i := range shown {
+				a.trackTableRow(c, i)
+			}
+			if len(a.visible) > shown {
+				ui.Row(c).FillWidth().Padding(t.Space(2.5), t.Space(4)).Children(func() {
+					ui.Spacer(c)
+					if b := quietButton(c, fmt.Sprintf("All %d tracks", len(a.visible))); b.Clicked() {
+						a.page = pageQueue
+					}
+				})
+			}
+		})
+	})
+}
+
+// homeTrackLimit is how many rows the home page's table shows before it points at
+// the Queue page for the rest.
+//
+// Four, not six: the home page is a glance at the playlist, and the rows here are
+// the same height as the Queue page's — six of them pushed the link to the rest off
+// the bottom of the window.
+const homeTrackLimit = 4
+
+// trackHead is one column heading of the table.
+func trackHead(c *ui.Context, label string, grow bool) ui.Element {
+	t := c.Theme()
+	head := ui.Text(c, label).FontSize(t.Rem(remCaption)).FontWeight(600).
+		LetterSpacing(0.06 * t.Rem(remCaption)).TextColor(surface(c).muted())
+	if grow {
+		return head.Grow(1)
+	}
+	return head.Grow(1)
+}
+
+// homeRecents is the shelf of playlists that were played before, as covers.
 func (a *app) homeRecents(c *ui.Context) {
 	t := c.Theme()
-	cover := t.Space(40)
-	// The shelf is as tall as a card: the cover, the name under it, and the
-	// word that says what it is, with the card's own room around them.
-	shelf := cover + t.Rem(remBody)*leadTitle + t.Rem(remCaption)*1.6 + t.Space(7)
+	cover := t.Space(36)
 	ui.Column(c).FillWidth().Gap(t.Space(3)).Children(func() {
-		listHead(c, "Listen again", "")
-		components.ScrollView(c, components.ScrollViewOptions{Axes: components.ScrollHorizontal}).
-			FillWidth().Height(shelf).
+		sectionHead(c, "Recently played", "Pick up where you left off.", func() {
+			if b := quietButton(c, "View all"); b.Clicked() {
+				a.page = pageQueue
+			}
+		})
+		ui.ScrollHorizontal(c).FillWidth().Height(cover + t.Space(14)).
 			ScrollbarInsets(0, 0, t.Space(2), 0).Children(func() {
 			ui.Row(c).Gap(t.Space(3)).Children(func() {
 				for _, recent := range a.recents {
@@ -109,66 +274,100 @@ func (a *app) homeRecents(c *ui.Context) {
 	})
 }
 
-// homePlaying says what the queue is, when there is one, and opens it.
-func (a *app) homePlaying(c *ui.Context) {
+// homeShelf is the design's "recently extracted" row: three wide cards with a
+// mark, the name and what it holds, and a round button that plays it.
+func (a *app) homeShelf(c *ui.Context) {
 	t := c.Theme()
-	var open ui.Element
-	card(c, func() {
-		ui.Row(c).FillWidth().Gap(t.Space(4)).AlignItems(ui.Center).Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(0.5)).Children(func() {
-				caption(c, "Playing from")
-				cardName(c, a.playlistTitle()).MaxLines(1).Ellipsis("…")
-			})
-			open = components.Button(c, "", components.ButtonGhost).Label("Open queue")
-			open.Children(func() {
-				ui.Row(c).Gap(t.Space(1.5)).AlignItems(ui.Center).Children(func() {
-					components.Text(c, "Open queue").FontSize(t.Rem(remControl)).
-						FontWeight(500).TextColor(surface(c).accent())
-					components.Icon(c, lucide.ChevronRight()).Size(t.Space(4), t.Space(4)).
-						TextColor(surface(c).accent())
-				})
-			})
+	shown := min(len(a.recents), 3)
+	ui.Column(c).FillWidth().Gap(t.Space(3)).Children(func() {
+		sectionHead(c, "Your playlists", "Opened from the cache, without touching the network.", nil)
+		ui.Row(c).FillWidth().Gap(t.Space(3)).Children(func() {
+			for i := range shown {
+				a.shelfCard(c, a.recents[i])
+			}
 		})
 	})
-	if open.Clicked() {
-		a.page = pageQueue
-	}
 }
 
-// recentCard draws one of the playlists that were played before.
-//
-// A width of zero takes the width of the slide the card sits in.
-func (a *app) recentCard(c *ui.Context, recent library.Recent, width float32) {
+// shelfCard is one wide card of the shelf.
+func (a *app) shelfCard(c *ui.Context, recent library.Recent) {
+	s := surface(c)
 	t := c.Theme()
 	title := recent.Title
 	if title == "" {
 		title = recent.Link
 	}
-	button := ui.ButtonBase(c).Key("recent-" + recent.Link).Padding(t.Space(1)).
-		Radius(radiusCard(t)).Gap(t.Space(2)).Shrink(0)
-	if width > 0 {
-		button.Width(width)
-	} else {
-		button.FillWidth()
+	ui.Box(c).Grow(1).MinWidth(0).Padding(t.Space(3)).Radius(radiusCard(t)).
+		Background(s.card()).Border(1, s.hairline()).AlignItems(ui.Center).
+		Children(func() {
+		ui.Row(c).FillWidth().Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(t.Space(14), t.Space(14)).Shrink(0).Radius(radiusControl(t)).
+				Background(s.sunken()).Border(1, s.hairline()).Center().Children(func() {
+				ui.Icon(c, iconGraphicEq).Size(t.Space(6), t.Space(6)).TextColor(s.muted())
+			})
+			ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(0.5)).Children(func() {
+				mono(c, "Playlist")
+				ui.Text(c, title).FontSize(t.Rem(remCaption)).FontWeight(600).
+					TextColor(s.text()).MaxLines(1).Ellipsis("…")
+			})
+			if b := roundButton(c, iconPlay, "Open "+title); b.Clicked() {
+				a.openRecent(recent.Link)
+			}
+		})
+	})
+}
+
+// recentCard draws one playlist of the shelf, as a cover with its name under it.
+func (a *app) recentCard(c *ui.Context, recent library.Recent, width float32) {
+	s := surface(c)
+	t := c.Theme()
+	title := recent.Title
+	if title == "" {
+		title = recent.Link
 	}
+	button := ui.ButtonBase(c).Key("recent-card-"+recent.Link).Width(width).Shrink(0).
+		Padding(t.Space(2)).Radius(radiusCard(t)).Gap(t.Space(2))
+	face := ui.Transparent
+	if button.Hovered() {
+		face = s.card()
+	}
+	button.Background(button.AnimateColor("face", face, motionColor))
 	button.Children(func() {
 		ui.Column(c).FillWidth().Gap(t.Space(2)).Children(func() {
-			art := width
-			if art == 0 {
-				art = t.Space(38)
-			}
-			a.picture(c, recent.Thumbnail, art, radiusControl(t))
-			ui.Column(c).FillWidth().Gap(t.Space(0.25)).Padding(t.Space(1), 0).Children(func() {
-				components.Text(c, title).FontSize(t.Rem(remBody)).FontWeight(500).
-					LineHeight(leadTitle).MaxLines(1).Ellipsis("…")
-				caption(c, "Playlist")
+			a.picture(c, recent.Thumbnail, width-t.Space(4), radiusControl(t))
+			ui.Column(c).FillWidth().Gap(t.Space(0.25)).Children(func() {
+				ui.Text(c, title).FontSize(t.Rem(remCaption)).FontWeight(600).
+					TextColor(s.text()).MaxLines(1).Ellipsis("…")
+				mono(c, "Playlist")
 			})
 		})
 	})
+	// Translation only, and only because the whole tile is a button: a Scale
+	// would resample the words under the cover.
+	button.AnimatePose(risePose(button.Hovered()), motionRise)
 	if button.Clicked() {
-		a.link = recent.Link
-		a.load()
+		a.openRecent(recent.Link)
 	}
+}
+
+// roundButton is the design's small circular action: a hairline ring with one
+// mark in it.
+func roundButton(c *ui.Context, mark *ui.SVG, label string) ui.Element {
+	s := surface(c)
+	t := c.Theme()
+	size := t.Space(8)
+	b := ui.ButtonBase(c).Size(size, size).Radius(size / 2).Center().
+		Label(label).Tooltip(label).Border(1, s.hairline())
+	face := ui.Transparent
+	if b.Hovered() {
+		face = s.sunken()
+	}
+	b.Background(b.AnimateColor("face", face, motionColor))
+	b.AnimatePose(pressPose(b.Pressed()), motionPress)
+	b.Children(func() {
+		ui.Icon(c, mark).Size(t.Space(4), t.Space(4)).TextColor(s.text())
+	})
+	return b
 }
 
 // playlistTitle returns the name of the playlist that plays.
@@ -178,3 +377,6 @@ func (a *app) playlistTitle() string {
 	}
 	return a.playlist.Title
 }
+
+// linkEmpty tells whether the field holds nothing to play.
+func (a *app) linkEmpty() bool { return strings.TrimSpace(a.link) == "" }

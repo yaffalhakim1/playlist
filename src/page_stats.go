@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
-	"github.com/oneo-me/onevra/source/components"
 )
 
 // statsPeriod is the period the page shows, kept on the app so it survives a
@@ -36,8 +35,8 @@ func (a *app) statsPage(c *ui.Context) {
 					pageName(c, "Your listening")
 					caption(c, w.supporting())
 				})
-				segmented := ui.Segmented(c, &statsPeriodIndex, periodNames...)
-				segmented.Width(t.Space(64))
+				ui.Segmented(c, &statsPeriodIndex, periodNames...).
+					Width(t.Space(64)).Label("Period")
 			})
 
 			if w.Empty() {
@@ -60,7 +59,7 @@ func (a *app) statsPoster(c *ui.Context, w wrap) {
 	t := c.Theme()
 	card(c, func() {
 		ui.Column(c).FillWidth().Gap(t.Space(3)).Children(func() {
-			components.Text(c, w.headline()).
+			ui.Text(c, w.headline()).
 				FontSize(t.Rem(remDisplay)).FontWeight(600).
 				LetterSpacing(trackDisplay(t)).LineHeight(leadDisplay).
 				MaxLines(3)
@@ -77,14 +76,12 @@ func (a *app) statsPoster(c *ui.Context, w wrap) {
 
 // posterFact is one of the two facts that sit under the headline.
 func (a *app) posterFact(c *ui.Context, label, value string, count int) {
-	s := surface(c)
 	t := c.Theme()
 	ui.Column(c).Grow(1).MinWidth(t.Space(40)).Gap(t.Space(0.5)).Children(func() {
 		caption(c, label)
-		components.Text(c, value).FontSize(t.Rem(remHeadline)).FontWeight(600).
+		ui.Text(c, value).FontSize(t.Rem(remHeadline)).FontWeight(600).
 			LineHeight(leadHeadline).MaxLines(1).Ellipsis("…")
 		caption(c, playsWord(count))
-		_ = s
 	})
 }
 
@@ -106,7 +103,7 @@ func (a *app) posterStrip(c *ui.Context, w wrap) {
 			}
 			bar := ui.Box(c).Grow(1).Height(height).Radius(t.Space(0.5))
 			if value > 0 {
-				bar.Background(s.accent())
+				bar.Background(s.text())
 			} else {
 				bar.Background(s.hairline())
 			}
@@ -117,13 +114,11 @@ func (a *app) posterStrip(c *ui.Context, w wrap) {
 // statsFacts is the row of three facts that earn their place: the streak, the
 // busiest hour, and how many days were listened to at all.
 func (a *app) statsFacts(c *ui.Context, w wrap) {
-	s := surface(c)
 	t := c.Theme()
 	ui.Row(c).FillWidth().Gap(t.Space(4)).Children(func() {
 		a.factTile(c, "In a row", fmt.Sprintf("%d", w.Streak), plural(w.Streak, "day"))
 		a.factTile(c, "Most often", hourWords(w.BusiestHour), "of the day")
 		a.factTile(c, "Days listened", fmt.Sprintf("%d", w.Days), "in this period")
-		_ = s
 	})
 }
 
@@ -134,7 +129,7 @@ func (a *app) factTile(c *ui.Context, label, value, note string) {
 	ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(0.5)).Padding(t.Space(4)).
 		Radius(radiusControl(t)).Background(s.card()).Children(func() {
 		caption(c, label)
-		components.Text(c, value).FontSize(t.Rem(remHeadline)).FontWeight(600).
+		ui.Text(c, value).FontSize(t.Rem(remHeadline)).FontWeight(600).
 			LineHeight(leadHeadline).MaxLines(1).Ellipsis("…")
 		caption(c, note)
 	})
@@ -148,12 +143,12 @@ func (a *app) statsEmpty(c *ui.Context, p period) {
 	card(c, func() {
 		ui.Column(c).FillWidth().Gap(t.Space(2)).Padding(t.Space(4), 0).
 			Center().Children(func() {
-			components.Text(c, "Nothing in this period.").FontSize(t.Rem(remTitle)).
+			ui.Text(c, "Nothing in this period.").FontSize(t.Rem(remTitle)).
 				FontWeight(600)
-			components.Text(c, "Listen for a while and it fills in.").
+			ui.Text(c, "Listen for a while and it fills in.").
 				FontSize(t.Rem(remBody)).TextColor(s.muted())
 			if p != periodAll {
-				if components.Button(c, "Show all time", components.ButtonSecondary).Clicked() {
+				if b := plainButton(c, "Show all time"); b.Clicked() {
 					statsPeriodIndex = int(periodAll)
 				}
 			}

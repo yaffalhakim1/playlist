@@ -15,27 +15,14 @@ func TestVisibleTracks(t *testing.T) {
 		{Title: "Katy Perry - Roar", Artist: "Katy Perry"},
 		{Title: "Wiz Khalifa - Roll Up", Artist: "Wiz Khalifa"},
 	}
-	cases := []struct {
-		filter string
-		want   []int
-	}{
-		{filter: "", want: []int{0, 1, 2}},
-		{filter: "bruno", want: []int{0}},
-		{filter: "KATY", want: []int{1}},
-		{filter: "ballads", want: []int{0}},
-		{filter: "nothing here", want: nil},
+	got := allTracks(queue)
+	if len(got) != len(queue) {
+		t.Fatalf("allTracks = %v, want every place of a queue of %d", got, len(queue))
 	}
-	for _, tc := range cases {
-		got := visibleTracks(queue, tc.filter)
-		if len(got) != len(tc.want) {
-			t.Errorf("visibleTracks(%q) = %v, want %v", tc.filter, got, tc.want)
-			continue
-		}
-		for i := range got {
-			if got[i] != tc.want[i] {
-				t.Errorf("visibleTracks(%q) = %v, want %v", tc.filter, got, tc.want)
-				break
-			}
+	for i := range got {
+		if got[i] != i {
+			t.Errorf("allTracks = %v, want the places in order", got)
+			break
 		}
 	}
 }
@@ -60,13 +47,13 @@ func TestClock(t *testing.T) {
 // TestFrameDrawsTheQueue draws the window with a playlist, which shows that
 // the view holds together.
 func TestFrameDrawsTheQueue(t *testing.T) {
-	a := &app{art: newArtwork(), current: -1, page: pagePlaylist}
+	a := &app{art: newArtwork(), current: -1, page: pageQueue}
 	a.playlist = &music.Playlist{ID: "PL", Title: "A playlist"}
 	a.queue = []music.Track{
 		{ID: "one", Title: "It Will Rain", Artist: "Bruno Mars", Duration: 3*time.Minute + 42*time.Second},
 		{ID: "two", Title: "Roar", Artist: "Katy Perry", Duration: 3 * time.Minute},
 	}
-	a.visible = visibleTracks(a.queue, "")
+	a.visible = allTracks(a.queue)
 
 	tester := ui.NewTester(a.frame, 1240, 820)
 	tester.Frame()
@@ -87,7 +74,7 @@ func TestFrameDrawsTheHomePage(t *testing.T) {
 	if !tester.HasText("Playlist link") {
 		t.Errorf("the home page does not ask for a link: %v", tester.Texts())
 	}
-	for _, item := range destinations {
+	for _, item := range append(append([]destination{}, navDestinations...), libraryDestinations...) {
 		if !tester.HasText(item.label) {
 			t.Errorf("the sidebar does not show %q: %v", item.label, tester.Texts())
 		}

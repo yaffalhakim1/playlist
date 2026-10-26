@@ -1,0 +1,152 @@
+/* The page's values, and they are the app's values.
+ *
+ * Every colour here was read out of src/theme.go, so the landing page and the
+ * window in its screenshots are the same object. A marketing page that invents
+ * its own palette promises a product that does not exist; this one cannot,
+ * because the two files share their numbers.
+ *
+ * Type is Plus Jakarta Sans, the face the app embeds, at the six sizes the app
+ * itself uses. Spacing is a 4px grid, which is the 8px grid the app draws on,
+ * halved where a page needs a tighter step than a window does.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* The paper scheme, from src/theme.go. */
+  --page: #faf9f5;
+  --card: #ffffff;
+  --rail: #f5f4f0;
+  --sunken: #efeeea;
+  --ink: #1b1c1a;
+  /* The app's muted is #787774, which is 4.25:1 on this paper. On the web the
+   * body text is smaller and there is no DPI scaling to lean on, so the tone
+   * is six points darker: 4.64:1 on the page and 4.89:1 on a card. Same grey
+   * to the eye, legible to the check. */
+  --muted: #72716d;
+  --rule: #e6e4de;
+  --rule-strong: #d8d5cd;
+  --action: #1b1c1a;
+  --action-ink: #faf9f5;
+
+  /* The band at the foot of the page is the ink of the paper scheme. */
+  --band: #1b1c1a;
+  --band-ink: #faf9f5;
+  --band-muted: #a8a5a0;
+  --band-rule: #3a3836;
+
+  /* The five accents the Appearance page offers, in its own order. */
+  --accent: #1c1c1a;
+  --accent-ink: #faf9f5;
+  --accent-2: #b86a51;
+  --accent-3: #6b7a68;
+  --accent-4: #566e7c;
+  --accent-5: #b08848;
+
+  /* Space: a 4px grid. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --s-20: 80px;
+  --s-24: 96px;
+  --s-32: 128px;
+
+  /* Type: the app's six sizes. The two large ones are fluid, but both ends of
+   * each clamp land on a step, so nothing resolves to a size off the scale. */
+  --t-caption: 12px;
+  --t-body: 14px;
+  --t-lead: 18px;
+  --t-title: 24px;
+  --t-headline: clamp(30px, 2.6vw + 18px, 48px);
+  --t-display: clamp(48px, 4.2vw + 18px, 72px);
+
+  /* Leading and tracking, as one decision per size. Large text is tracked
+   * tight and led tight; body text is left alone. The display step is 1.02
+   * rather than 1 because at 72px a line of Plus Jakarta Sans with a g, a p
+   * and a y in it needs the room: tighter than this and the descenders of one
+   * line touch the caps of the next. */
+  --lead-display: 1.02;
+  --lead-headline: 1.14;
+  --lead-title: 1.28;
+  --lead-lead: 1.6;
+  --lead-body: 1.65;
+  --lead-caption: 1.5;
+
+  --track-display: -0.028em;
+  --track-headline: -0.02em;
+  --track-title: -0.012em;
+
+  --r-card: 24px;
+  --r-stock: 16px;
+  --r-control: 12px;
+  --r-pill: 999px;
+
+  /* A control is 44px tall: the smallest target a finger hits reliably. It is
+   * not a spacing step, so it is its own token rather than a magic number. */
+  --control-h: 44px;
+
+  --container: 1180px;
+  --gutter: 24px;
+
+  /* Motion. One curve for entering, one for moving, one for the press. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-press: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 140ms;
+  --dur-short: 200ms;
+  --dur-long: 420ms;
+  --dur-reveal: 800ms;
+
+  --shadow-card: 0 1px 2px rgb(27 28 26 / 0.04), 0 12px 32px -18px rgb(27 28 26 / 0.18);
+  --shadow-window: 0 2px 6px rgb(27 28 26 / 0.06), 0 24px 64px -28px rgb(27 28 26 / 0.28);
+}
+
+/* Dark is the app's ink scheme, and it is the only other one. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #131312;
+  --card: #1c1c1b;
+  --rail: #171716;
+  --sunken: #242322;
+  --ink: #edebe6;
+  --muted: #9a9791;
+  --rule: #2e2d2b;
+  --rule-strong: #3a3836;
+  --action: #edebe6;
+  --action-ink: #131312;
+
+  /* The accent flips with the scheme, so what is written on it has to flip
+   * with it too. Leaving this at the light value is how the step numbers and
+   * the marked phrase became white on near white. */
+  --accent: #edebe6;
+  --accent-ink: #131312;
+
+  /* The inverted band at the foot of the page. In light it is dark ink on the
+   * paper; in dark it is a raised card, because a black band on a black page
+   * is not a band. */
+  --band: var(--card);
+  --band-ink: var(--ink);
+  --band-muted: var(--muted);
+  --band-rule: var(--rule);
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -18px rgb(0 0 0 / 0.7);
+  --shadow-window: 0 2px 6px rgb(0 0 0 / 0.4), 0 24px 64px -28px rgb(0 0 0 / 0.9);
+}
+
+@media (max-width: 60rem) {
+  :root {
+    --gutter: 20px;
+  }
+}
+
+@media (max-width: 40rem) {
+  :root {
+    --gutter: 16px;
+  }
+}

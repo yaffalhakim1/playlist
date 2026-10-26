@@ -1,205 +1,212 @@
 package src
 
 import (
+	"time"
+
 	"github.com/egoist/mygo/ui"
-	"github.com/oneo-me/onevra/source/components"
-	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // destination is a page of the app.
 type destination struct {
 	id    string
 	label string
-	icon  func() *ui.SVG
+	icon  *ui.SVG
 }
 
-// destinations are the pages, in the order the sidebar shows them.
-var destinations = []destination{
-	{pageHome, "Home", lucide.House},
-	{pagePlaylist, "Playlist", lucide.ListMusic},
-	{pagePlayer, "Player", lucide.Disc3},
-	{pageQueue, "Queue", lucide.ListOrdered},
-	{pageStats, "Stats", lucide.ChartBar},
-	{pageAppearance, "Look", lucide.Palette},
-}
-
-// sidebar draws the navigation of the window: the pages, and the playlists
-// that were played before, under their artwork.
+// destinations are the pages, in the order the rail shows them.
 //
-// The shell floats its header over the sidebar and puts its collapse control
-// at the top left of it, so the sidebar keeps the header's height clear above
-// its first section and lets the rest scroll under the bar below.
+// Two groups, as the design has them: the two places that are about what the app
+// does, then the library. A playlist is not a page — it is an item in the rail's
+// own list — so opening one shows its tracks on the Queue page.
+var (
+	navDestinations = []destination{
+		{pageHome, "Home", iconHome},
+		{pagePlayer, "Player", iconDisc},
+	}
+	libraryDestinations = []destination{
+		{pageQueue, "Listen Now", iconPlayCircle},
+		{pageStats, "History", iconHistory},
+		{pageAppearance, "Appearance", iconPalette},
+	}
+)
+
+// railWidth is how wide the sidebar is drawn: the design's 240 DIPs.
+const railWidth = 240
+
+// railMotion is how long the rail takes to open or close.
+var railMotion = 220 * time.Millisecond
+
+// sidebar draws the rail: the window's own dots, the two groups of pages, the
+// playlists that were played before, and what is playing now.
+//
+// The header floats over the window, so the rail keeps its height clear above its
+// first row and scrolls under it.
 func (a *app) sidebar(c *ui.Context) {
-	ui.Column(c).Fill().Padding(a.headerHeight(c)+c.Theme().Space(1), 0, 0).Children(func() {
-		components.ScrollView(c, components.ScrollViewOptions{}).Fill().Children(func() {
-			components.Sidebar(c).Children(func() {
-				components.SidebarSection(c, "Library", func() {
-					for _, item := range destinations {
-						a.destination(c, item)
+	t := c.Theme()
+	ui.Column(c).Fill().Padding(a.headerHeight(c), t.Space(2.5), t.Space(2.5), t.Space(2.5)).
+		Children(func() {
+			ui.Scroll(c).Fill().ScrollbarInsets(t.Space(2)).Children(func() {
+				ui.Column(c).FillWidth().Children(func() {
+					a.navGroup(c, navDestinations)
+					a.libraryGroup(c)
+					if len(a.recents) > 0 {
+						a.playlistGroup(c)
 					}
 				})
-				if len(a.recents) > 0 {
-					components.SidebarSection(c, "Playlists", func() {
-						for _, recent := range a.recents {
-							a.recentItem(c, recent.Link, recent.Title, recent.Thumbnail)
-						}
-					})
-				}
 			})
 		})
+}
+
+// navGroup draws the two pages at the top, with no heading over them.
+func (a *app) navGroup(c *ui.Context, items []destination) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(t.Space(0.5)).Children(func() {
+		for _, item := range items {
+			a.destination(c, item)
+		}
 	})
 }
 
-// destination draws one destination of the sidebar.
+// libraryGroup draws the Library heading and the pages under it.
+func (a *app) libraryGroup(c *ui.Context) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(t.Space(0.5)).Padding(t.Space(5), 0, 0, 0).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Padding(0, t.Space(2.5), t.Space(1.5), t.Space(2.5)).
+			Children(func() {
+			ui.Text(c, "LIBRARY").FontSize(t.Rem(remCaption)).FontWeight(600).
+				LetterSpacing(0.06 * t.Rem(remCaption)).TextColor(surface(c).muted())
+		})
+		for _, item := range libraryDestinations {
+			a.destination(c, item)
+		}
+	})
+}
+
+// playlistGroup draws the playlists that were played before, as names under a
+// heading, which is how the design has them: a rail of text rather than a column
+// of covers, so the page keeps the pictures.
+func (a *app) playlistGroup(c *ui.Context) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Gap(t.Space(0.5)).Padding(t.Space(5), 0, 0, 0).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Padding(0, t.Space(2.5), t.Space(1.5), t.Space(2.5)).
+			Children(func() {
+			ui.Text(c, "PLAYLISTS").FontSize(t.Rem(remCaption)).FontWeight(600).
+				LetterSpacing(0.06 * t.Rem(remCaption)).TextColor(surface(c).muted())
+		})
+		for _, recent := range a.recents {
+			a.recentItem(c, recent.Link, recent.Title)
+		}
+	})
+}
+
+// destination draws one page of the rail: a soft pill that turns white when it is
+// the page that shows.
 func (a *app) destination(c *ui.Context, item destination) {
+	s := surface(c)
+	t := c.Theme()
 	selected := a.page == item.id
-	button := components.SidebarItem(c, item.label, item.icon(), selected).Key("nav-" + item.id)
-	if button.Clicked() {
+	b := ui.ButtonBase(c).Key("nav-"+item.id).FillWidth().Gap(t.Space(2.5)).
+		Padding(t.Space(1.5), t.Space(3)).Radius(radiusControl(t)).
+		AlignItems(ui.Center).Label(item.label)
+	face := ui.Transparent
+	switch {
+	case selected:
+		face = s.card()
+	case b.Hovered():
+		face = s.card().Alpha(0.6)
+	}
+	b.Background(b.AnimateColor("face", face, motionColor))
+	if selected {
+		b.Shadow(0, 1, 3, 0, s.shadow())
+	}
+	ink := s.muted()
+	if selected {
+		ink = s.text()
+	}
+	b.Children(func() {
+		ui.Row(c).FillWidth().Gap(t.Space(2.5)).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, item.icon).Size(t.Space(4.5), t.Space(4.5)).TextColor(ink)
+			ui.Text(c, item.label).FontSize(t.Rem(remBody)).FontWeight(500).
+				TextColor(ink).Grow(1).MaxLines(1).Ellipsis("…")
+		})
+	})
+	if b.Clicked() {
 		a.page = item.id
 	}
 }
 
-// recentItem draws one of the playlists that were played before, under the
-// artwork it came with.
+// recentItem draws one of the playlists that were played before, as a name.
 //
-// A right click on it offers to forget it, which removes it from the sidebar,
-// from the cache, and from the session if it was the one open. Deleting is the
-// one thing here that cannot be undone, so it asks first.
-func (a *app) recentItem(c *ui.Context, link, title, thumbnail string) {
+// A right click offers to forget it, which asks first: deleting is the one thing
+// here that cannot be undone.
+func (a *app) recentItem(c *ui.Context, link, title string) {
+	s := surface(c)
+	t := c.Theme()
 	if title == "" {
 		title = link
 	}
-	var item ui.Element
-	if bitmap := a.art.get(thumbnail); bitmap != nil {
-		item = components.SidebarImageItem(c, title, bitmap, false)
-	} else {
-		a.art.want(thumbnail)
-		item = components.SidebarItem(c, title, lucide.ListMusic(), false)
+	selected := a.openLink == link && a.page == pageQueue
+	b := ui.ButtonBase(c).Key("recent-"+link).FillWidth().
+		Padding(t.Space(1.5), t.Space(3)).Radius(radiusControl(t)).
+		AlignItems(ui.Center).Label(title)
+	face := ui.Transparent
+	if b.Hovered() {
+		face = s.card().Alpha(0.6)
 	}
-	item.Key("recent-" + link)
-	item.ContextMenu(func(m *ui.Menu) {
-		// Onevra's own components (Tabs, Honeycomb) hand MyGo a *ui.Menu the
-		// same way; there is no Onevra context-menu component to use instead.
-		m.Item("Open").Chosen()
-		m.Separator()
+	b.Background(b.AnimateColor("face", face, motionColor))
+	ink := s.muted()
+	if selected {
+		ink = s.text()
+	}
+	b.Children(func() {
+		ui.Text(c, title).FontSize(t.Rem(remBody)).TextColor(ink).
+			MaxLines(1).Ellipsis("…")
+	})
+	b.ContextMenu(func(m *ui.Menu) {
 		if m.Item("Delete playlist").Chosen() {
 			a.askDelete(link, title)
 		}
 	})
-	if item.Clicked() {
-		a.link = link
-		a.load()
+	if b.Clicked() {
+		a.openRecent(link)
 	}
 }
 
-// content draws the page, with the player bar under it.
+// miniPlayer is the card at the foot of the rail: what plays, its cover, and one
+// button that plays or holds it.
 //
-// The page keeps clear of the bar, so nothing rests behind it and nothing
-// scrolls under it: the bar is the last row of the window, not a thing
-// floating over the page. A page that replaces another arrives from a little
-// below and fades in, keyed by which page it is, so the change reads as one
-// surface replacing another rather than as a flicker.
-func (a *app) content(c *ui.Context) {
-	ui.Box(c).Fill().Clip().Children(func() {
-		ui.Box(c).Key(a.page).Fill().Transition(motionReveal).Children(func() {
-			a.pageContent(c)
+// It is the rail's answer to the bar at the bottom of the window, for the pages
+// that have one: the Player page has its own transport, and this one is small
+// enough to sit under the playlists without taking their room.
+func (a *app) miniPlayer(c *ui.Context) {
+	s := surface(c)
+	t := c.Theme()
+	track := a.currentTrack()
+	ui.Box(c).FillWidth().Shrink(0).Padding(t.Space(2.5)).Radius(radiusControl(t)+t.Space(1)).
+		Background(s.card()).Border(1, s.hairline()).
+		Shadow(0, 1, 4, 0, s.shadow()).Children(func() {
+		ui.Row(c).FillWidth().Gap(t.Space(2.5)).AlignItems(ui.Center).Children(func() {
+			a.picture(c, track.Thumbnail, t.Space(10), radiusControl(t))
+			ui.Column(c).Grow(1).MinWidth(0).Gap(t.Space(0.25)).Children(func() {
+				if track.Title == "" {
+					ui.Text(c, "Nothing playing").FontSize(t.Rem(remCaption)).
+						TextColor(s.muted()).MaxLines(1).Ellipsis("…")
+					return
+				}
+				ui.Text(c, track.Title).FontSize(t.Rem(remCaption)).FontWeight(600).
+					TextColor(s.text()).MaxLines(1).Ellipsis("…")
+				line := trackLine(track.Title, track.Artist, track.Album)
+				if line != track.Title {
+					ui.Text(c, line).FontSize(t.Rem(remCaption)).TextColor(s.muted()).
+						MaxLines(1).Ellipsis("…")
+				}
+			})
+			if len(a.queue) > 0 {
+				if b := iconButton(c, iconHeart, "Like"); b.Clicked() {
+					// There is no favourites store yet; the button is drawn for
+					// the design and does nothing until there is one.
+				}
+			}
 		})
-		a.playerbar(c)
 	})
-}
-
-// pageTitle returns the name of the page that shows.
-func (a *app) pageTitle() string {
-	switch a.page {
-	case pagePlaylist:
-		if a.playlist != nil && a.playlist.Title != "" {
-			return a.playlist.Title
-		}
-		return "Playlist"
-	case pagePlayer:
-		return "Now playing"
-	case pageQueue:
-		return "Queue"
-	case pageStats:
-		return "Your listening"
-	case pageAppearance:
-		return "Appearance"
-	default:
-		return "Home"
-	}
-}
-
-// pageContent draws the page that shows.
-func (a *app) pageContent(c *ui.Context) {
-	switch a.page {
-	case pagePlaylist:
-		a.playlistPage(c)
-	case pagePlayer:
-		a.playerPage(c)
-	case pageQueue:
-		a.queuePage(c)
-	case pageStats:
-		a.statsPage(c)
-	case pageAppearance:
-		a.appearancePage(c)
-	default:
-		a.homePage(c)
-	}
-}
-
-// pageFrame gives a page the room it lives in: the same margins on every
-// page, clear of the header above and of the bar below, and never wider than
-// a line of text can be followed.
-//
-// The bar keeps its own strip at the bottom of the window, outside the page,
-// so nothing the page holds ever passes under it: a row of covers is cut by
-// the edge of its own space rather than by something floating over it.
-//
-// A page that scrolls puts its content in one scroll view; a page that holds
-// a list gives the list the height that is left, so there is never a scroll
-// bar inside a scroll bar.
-func (a *app) pageFrame(c *ui.Context, scrolling bool, build func()) {
-	t := c.Theme()
-	top := a.headerHeight(c) + t.Space(6)
-	side := pageInset(c)
-	bottom := components.ScrollEdgeBarExtent(c, playerBarOptions(c)) + t.Space(2)
-	column := func() {
-		ui.Column(c).FillWidth().MaxWidth(pageWidth(c)).AlignSelf(ui.Center).Children(build)
-	}
-	if scrolling {
-		ui.Box(c).Fill().Padding(top, side, bottom, side).Children(func() {
-			components.ScrollView(c, components.ScrollViewOptions{}).Fill().Children(column)
-		})
-		return
-	}
-	ui.Box(c).Fill().Padding(top, side, bottom, side).Children(func() {
-		ui.Column(c).Fill().MaxWidth(pageWidth(c)).AlignSelf(ui.Center).Children(build)
-	})
-}
-
-// pageWidth is how wide a page grows before it stops: past it a line of text
-// is hard to follow and a row of covers leaves a desert of empty page beside
-// it, so the column centers in the window instead.
-func pageWidth(c *ui.Context) float32 { return c.Theme().Space(238) }
-
-// pageInset is the margin a page keeps from the window, and the one the
-// header's own actions keep, so an action ends where the page does. A narrow
-// window keeps less of it, so the page still has room for what it holds.
-func pageInset(c *ui.Context) float32 {
-	t := c.Theme()
-	if width, _ := c.Size(); width < 1040 {
-		return t.Space(6)
-	}
-	return t.Space(8)
-}
-
-// playerBarOptions describes the bar that floats over the page.
-func playerBarOptions(c *ui.Context) components.ScrollEdgeBarOptions {
-	t := c.Theme()
-	return components.ScrollEdgeBarOptions{
-		Style:  components.ScrollEdgeSoft,
-		Bottom: true,
-		Height: t.Space(22),
-		Inset:  t.Space(4),
-	}
 }

@@ -223,6 +223,8 @@ type flatEntry struct {
 	Title      string  `json:"title"`
 	URL        string  `json:"url"`
 	Duration   float64 `json:"duration"`
+	Channel    string  `json:"channel"`
+	Uploader   string  `json:"uploader"`
 	Thumbnails []struct {
 		URL    string `json:"url"`
 		Width  int    `json:"width"`
@@ -256,6 +258,13 @@ func Playlist(ctx context.Context, ref string) (*music.Playlist, error) {
 			continue
 		}
 		title, artist := splitTitle(entry.Title)
+		// yt-dlp knows the channel that published a track, which for a mix is
+		// the only artist there is. It is used when the title does not name one,
+		// because "Artist - Song" is more precise than the channel a label or a
+		// topic page publishes under.
+		if artist == "" {
+			artist = artistFromChannel(entry.Channel, entry.Uploader, title)
+		}
 		playlist.Tracks = append(playlist.Tracks, music.Track{
 			ID:        entry.ID,
 			Title:     title,
@@ -285,6 +294,36 @@ func splitTitle(title string) (name, artist string) {
 		return title, ""
 	}
 	return strings.TrimSpace(after), strings.TrimSpace(before)
+}
+
+// artistFromChannel returns the artist a track's channel names, for the tracks
+// whose title does not.
+//
+// The channel is not always the performer: a label, a topic page and a lyric
+// channel all publish other people's music. So it is only used when it looks
+// like a performer — a name, not "Various Artists", not the "- Topic" channel
+// YouTube generates, and not a name that is really a label. What it buys is a
+// mix's tracks having an artist at all, which is what the queue shows under the
+// title and what Last.fm needs to record a play.
+func artistFromChannel(channel, uploader, title string) string {
+	name := strings.TrimSpace(channel)
+	if name == "" {
+		name = strings.TrimSpace(uploader)
+	}
+	name = strings.TrimSuffix(name, " - Topic")
+	name = strings.TrimSpace(name)
+	if name == "" || name == title {
+		return ""
+	}
+	if strings.Contains(strings.ToLower(name), "vevo") {
+		return name
+	}
+	for _, generic := range []string{"various artists", "youtube", "topic", "records", "music"} {
+		if strings.EqualFold(name, generic) {
+			return ""
+		}
+	}
+	return name
 }
 
 // bestThumb returns the largest of a list of thumbnails.

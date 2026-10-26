@@ -6,7 +6,6 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/chart"
-	"github.com/oneo-me/onevra/source/components"
 )
 
 // statsDays is how many days the chart shows.
@@ -39,7 +38,7 @@ func (a *app) statsChart(c *ui.Context, values []float64, labels []string) {
 				// A chart of nothing has no shape to read: it says what would
 				// fill it instead of drawing an axis with no bars on it.
 				ui.Box(c).Fill().Center().Children(func() {
-					components.Text(c, "Play something, and the days fill in here.").
+					ui.Text(c, "Play something, and the days fill in here.").
 						FontSize(t.Rem(remBody)).TextColor(s.muted()).TextAlign(ui.Center)
 				})
 				return
@@ -71,10 +70,10 @@ func (a *app) statsMostPlayed(c *ui.Context, plays []libraryPlay) {
 				Padding(t.Space(1), 0).Children(func() {
 				ui.Box(c).Size(t.Space(7), t.Space(7)).Shrink(0).Radius(radiusPill(t)).
 					Background(s.sunken()).Center().Children(func() {
-					components.Text(c, fmt.Sprintf("%d", i+1)).FontSize(t.Rem(remCaption)).
+					ui.Text(c, fmt.Sprintf("%d", i+1)).FontSize(t.Rem(remCaption)).
 						FontWeight(500).TextColor(s.muted()).FontFeatures("tnum")
 				})
-				components.Text(c, item.title).FontSize(t.Rem(remBody)).
+				ui.Text(c, item.title).FontSize(t.Rem(remBody)).
 					FontWeight(500).MaxLines(1).Ellipsis("…").Grow(1)
 				caption(c, playsWord(item.count))
 			})
@@ -178,7 +177,7 @@ func listeningTime(plays []libraryPlay) string {
 
 // chartBand and chartLinear are the chart's scales, kept here so the plot code
 // reads without the chart package in every call.
-func chartBand(labels []string) chart.Band  { return chart.NewBand(labels...).Padding(0.42, 0.12) }
+func chartBand(labels []string) chart.Band { return chart.NewBand(labels...).Padding(0.42, 0.12) }
 func chartLinear(lo, hi float64) chart.Linear {
 	y := chart.NewLinear(lo, hi).Nice(4)
 	y.Format = func(v float64) string { return fmt.Sprintf("%.0f", v) }
@@ -205,7 +204,7 @@ func drawPlot(c *ui.Context, s surfaces, x chart.Band, y chart.Linear, values []
 				continue
 			}
 			chart.Rect(c, x.Band(i), y.Span(0, value)).
-				Background(s.accent()).Radius(t.Space(0.75))
+				Background(s.text()).Radius(t.Space(0.75))
 		}
 	}).Height(t.Space(38)).Gap(t.Space(2))
 }

@@ -3,9 +3,9 @@
 A desktop player for YouTube playlists. You paste a link and it plays the
 music.
 
-Built with [MyGo](https://mygo.egoist.dev) for the native window and
-[Onevra](https://oneo-me.github.io/onevra/) for the controls. No webview, no
-browser engine.
+Built with [MyGo](https://mygo.egoist.dev) alone: the native window, the
+controls and the theme all come from `github.com/egoist/mygo/ui`. No webview, no
+browser engine, no component library on top.
 
 ![Home](docs/screenshots/home.png)
 
@@ -78,7 +78,7 @@ src/                    the interface, one package
   widgets.go            type roles and the pieces pages are built from
   theme.go              space, type, tracking, leading, motion
   surfaces.go           the faces the app paints
-  assets.go             Inter, embedded
+  assets.go             Plus Jakarta Sans, embedded
 internal/
   music                 Track, Playlist
   innertube             the InnerTube client and its parser
@@ -138,5 +138,5 @@ and the release work. [`CHANGELOG.md`](CHANGELOG.md) is what changed per version
 
 ## Licence
 
-The code belongs to its author. Inter ships under the SIL Open Font License;
+The code belongs to its author. Plus Jakarta Sans ships under the SIL Open Font License;
 see `src/assets/fonts/OFL.txt`.

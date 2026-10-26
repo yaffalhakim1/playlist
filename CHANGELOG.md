@@ -8,6 +8,61 @@ pins it — see [`docs/bugs.md`](docs/bugs.md).
 
 ---
 
+## 0.7.0
+
+MyGo alone, a new look, and a track that plays to its last second.
+
+### Changed
+
+- **Onevra is gone.** Every control is now MyGo's own: one dependency instead of
+  two, 1.2 MB of generated icons replaced by 30 inline SVG paths, and the shell
+  layout is a file the app owns rather than a copy of one a library owned.
+- **MyGo v0.5.5 → v0.6.4.**
+- **A new look**, built from a design: warm paper and near-black ink, Plus
+  Jakarta Sans embedded at four weights, a 240 DIP rail, and a table on the
+  playlist page.
+- **An accent colour and artwork tint** on the Appearance page, with the window's
+  Windows 11 backdrop (Tabbed, Mica, Acrylic) behind it.
+- **The playlist page is the queue.** A playlist is the tracks in the order they
+  will play, so the two pages that showed it were one page twice.
+- **The player page is a poster** — the cover, the transport and the timeline on
+  one axis, with the queue beside it. The footer is back under it: a page without
+  the bar cannot say a track is loading or broken.
+
+### Added
+
+- **Re-sync** on the playlist page: drop the cached tracks and read the playlist
+  from YouTube again.
+- **Filter playlist**: narrow the rows by title, artist or album as you type.
+- **States the pages were missing**: Paste when the field is empty, a busy button
+  and a skeleton while a playlist is read, "Finding the track…", and a failed
+  track with **Try again**.
+- **Motion that only paints**: cards, buttons and the transport move with
+  `AnimatePose`, which repaints without rebuilding the view.
+
+### Fixed
+
+- **A track stopped a second or two before its end.** Three causes: `-xerror`
+  aborted ffmpeg on the first recoverable error, ffmpeg was never told to
+  reconnect a streamed source, and a clean end was read as a broken stream — so
+  the last seconds of every song were played three times over and then it gave
+  up. `docs/bugs.md`
+- **Repeat added a button instead of changing one.** The glyph was chosen by
+  reassigning the element after it was already a child of the row.
+- **Shuffle never looked on**: its colour was set on the button, and the mark
+  inside it is a child with a colour of its own.
+- **The rail toggle vanished with the rail**, leaving no way to bring the sidebar
+  back.
+- **Mix tracks had no artist.** yt-dlp knows each track's channel, so a mix now
+  reads like a playlist: 528 of 528 tracks on a real one, where it was none.
+
+### Removed
+
+- the Playlist page, the Shuffle setting, the Last.fm settings page, the search
+  field and the avatar, and the "Downloaded" filter — each was a second control
+  for something that already had one, or a control for something the app does not
+  do.
+
 ## 0.6.0
 
 Last.fm, and a mix from the track that is playing.

@@ -201,17 +201,17 @@ func TestPagesUseTheTypeScale(t *testing.T) {
 }
 
 // TestPagesUseTheThemeColours parses the pages and fails on a colour written
-// by hand: every face is a role of Onevra's palette.
+// by hand: every face is a role of the theme.
 //
-// The exceptions are the theme, which derives the accent's own faces from the
-// accent, the colour reader, which reads a cover, and the Look page, whose
-// whole job is to offer the eight accents to choose from.
+// The exceptions are the theme, which defines the paper and its ink, the colour
+// reader, which reads a cover, and the Appearance page, whose whole job is to show
+// colours: the tones it offers, and a miniature of the appearance the window is
+// not currently in.
 func TestPagesUseTheThemeColours(t *testing.T) {
 	allowed := map[string]bool{
-		"theme.go":           true,
-		"color.go":           true,
-		"palettes.go":        true, // the Material 3 schemes are defined here
-		"page_appearance.go": true,
+		"theme.go":           true, // the paper and its ink are defined here
+		"color.go":           true, // a cover's hue is read here
+		"page_appearance.go": true, // the tones and the previews are drawn here
 	}
 	for _, file := range sourceFiles(t) {
 		if allowed[filepath.Base(file)] {
@@ -226,80 +226,6 @@ func TestPagesUseTheThemeColours(t *testing.T) {
 			})
 		}
 	}
-}
-
-// TestMarkOnReadsOnItsFill checks that the mark on a swatch is chosen for the
-// colour under it, so it never vanishes into a pale accent.
-func TestMarkOnReadsOnItsFill(t *testing.T) {
-	cases := []struct {
-		fill string
-		want string
-	}{
-		{"#6b5e00", "#ffffff"}, // a dark olive takes a white mark
-		{"#006a6a", "#ffffff"}, // a deep teal takes one too
-		{"#f5f5f0", "#1a1a18"}, // a near-white takes ink
-		{"#b47109", "#ffffff"}, // a mid amber still takes white
-	}
-	for _, tc := range cases {
-		if got := markOn(tc.fill); got != tc.want {
-			t.Errorf("markOn(%q) = %q, want %q", tc.fill, got, tc.want)
-		}
-	}
-}
-
-// TestMarkOnIsLegible checks the choice against every accent the app offers:
-// the mark and the fill must differ enough to be seen.
-func TestMarkOnIsLegible(t *testing.T) {
-	for _, fill := range accents {
-		mark := markOn(fill)
-		fillRed, fillGreen, fillBlue := hexToRGB(fill)
-		markRed, markGreen, markBlue := hexToRGB(mark)
-		fillLum := luminance(fillRed, fillGreen, fillBlue)
-		markLum := luminance(markRed, markGreen, markBlue)
-		ratio := contrastRatio(fillLum, markLum)
-		if ratio < 3 {
-			t.Errorf("the mark on %s (%s) has a contrast of %.1f:1, under the 3:1 a mark needs",
-				fill, mark, ratio)
-		}
-	}
-}
-
-// TestMarksAreAllOffered checks that the eight accents the Look page offers are
-// the eight it declares, with no duplicate.
-func TestMarksAreAllOffered(t *testing.T) {
-	if len(accents) != 8 {
-		t.Errorf("the app offers %d accents, not 8", len(accents))
-	}
-	seen := map[string]bool{}
-	for _, accent := range accents {
-		if seen[accent] {
-			t.Errorf("the accent %s is offered twice", accent)
-		}
-		seen[accent] = true
-		if len(accent) != 7 || accent[0] != '#' {
-			t.Errorf("%q is not a hex colour", accent)
-		}
-	}
-}
-
-// luminance returns a colour's relative luminance, as WCAG defines it.
-func luminance(red, green, blue int) float64 {
-	channel := func(v int) float64 {
-		c := float64(v) / 255
-		if c <= 0.03928 {
-			return c / 12.92
-		}
-		return pow((c+0.055)/1.055, 2.4)
-	}
-	return 0.2126*channel(red) + 0.7152*channel(green) + 0.0722*channel(blue)
-}
-
-// contrastRatio returns the contrast of two luminances, from 1 to 21.
-func contrastRatio(a, b float64) float64 {
-	if a < b {
-		a, b = b, a
-	}
-	return (a + 0.05) / (b + 0.05)
 }
 
 // TestNoMethodLocksTwiceInOnePath is a structural guard against the class of

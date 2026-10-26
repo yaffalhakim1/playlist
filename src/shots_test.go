@@ -42,7 +42,7 @@ func TestDrawPages(t *testing.T) {
 		// is how the lower groups, such as Last.fm, get looked at.
 		{"-tall", 1280, 1600, false},
 	}
-	for _, page := range []string{pageHome, pagePlaylist, pagePlayer, pageQueue, pageStats, pageAppearance} {
+	for _, page := range []string{pageHome, pageQueue, pagePlayer, pageQueue, pageStats, pageAppearance} {
 		for _, shape := range shapes {
 			a := &app{art: newArtwork(), current: 0, page: page}
 			// The Look page draws the Last.fm card from the scrobbler's state, so
@@ -50,7 +50,7 @@ func TestDrawPages(t *testing.T) {
 			a.scrobble = newScrobbler()
 			a.playlist = &music.Playlist{ID: "PL", Title: "Mix - Bruno Mars - It Will Rain"}
 			a.queue = queue
-			a.visible = visibleTracks(queue, "")
+			a.visible = allTracks(queue)
 			a.volume = 0.7
 			a.duration = 3*time.Minute + 42*time.Second
 			a.position = 97 * time.Second
@@ -63,6 +63,11 @@ func TestDrawPages(t *testing.T) {
 
 			tester := ui.NewTester(a.frame, shape.width, shape.height)
 			tester.SetDark(shape.dark)
+			tester.Frame()
+			// The picture is of the window at rest, not of a colour still on
+			// its way: a face animates over a moment, and a shot taken on the
+			// first frame shows where it started.
+			tester.Advance(time.Second)
 			tester.Frame()
 			image := tester.Image()
 			if image == nil {
@@ -115,6 +120,8 @@ func TestDrawStats(t *testing.T) {
 	}
 	tester := ui.NewTester(a.frame, 1280, 840)
 	tester.Frame()
+	tester.Advance(time.Second)
+	tester.Frame()
 	path := filepath.Join(dir, "stats-data.png")
 	file, err := os.Create(path)
 	if err != nil {
@@ -135,9 +142,11 @@ func TestDrawEmptyPages(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("make the folder: %v", err)
 	}
-	for _, page := range []string{pageHome, pagePlaylist, pagePlayer, pageQueue, pageStats} {
+	for _, page := range []string{pageHome, pageQueue, pagePlayer, pageQueue, pageStats} {
 		a := &app{art: newArtwork(), current: -1, page: page}
 		tester := ui.NewTester(a.frame, 1280, 840)
+		tester.Frame()
+		tester.Advance(time.Second)
 		tester.Frame()
 		image := tester.Image()
 		if image == nil {

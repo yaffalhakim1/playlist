@@ -59,6 +59,13 @@ func (a *app) isPlaying() bool {
 	return a.playing
 }
 
+// isBuffering tells whether the app is finding the audio of a track.
+func (a *app) isBuffering() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.buffering
+}
+
 // isShuffle tells whether the queue plays in a random order.
 func (a *app) isShuffle() bool {
 	a.mu.Lock()
@@ -127,6 +134,21 @@ func (a *app) playAll() {
 	a.chosenTrack = true
 	a.mu.Unlock()
 	a.engine.Play(0)
+}
+
+// retryTrack plays the track that failed again, from its start.
+//
+// A track that failed failed with the link it was given, so the resolver is told
+// to forget it: asking for the same link again would fail the same way.
+func (a *app) retryTrack() {
+	a.mu.Lock()
+	index := a.current
+	a.status = ""
+	a.mu.Unlock()
+	if index < 0 || index >= len(a.queue) || a.engine == nil {
+		return
+	}
+	a.playAt(index, 0)
 }
 
 // toggleShuffle turns the random order on or off.
@@ -219,13 +241,26 @@ func (a *app) clearHistory() {
 	}
 }
 
+// openRecent opens a playlist from the shelf or the rail.
+func (a *app) openRecent(link string) {
+	a.mu.Lock()
+	a.link = link
+	a.mu.Unlock()
+	a.load()
+}
+
 // pasteLink reads what is on the clipboard and loads it.
 func (a *app) pasteLink() {
 	text := mygo.Clipboard.ReadText()
 	if strings.TrimSpace(text) == "" {
+		a.mu.Lock()
+		a.notice = &notice{title: "Nothing to paste", body: "The clipboard holds no link.", kind: "info"}
+		a.mu.Unlock()
 		return
 	}
+	a.mu.Lock()
 	a.link = strings.TrimSpace(text)
+	a.mu.Unlock()
 	a.load()
 }
 
@@ -242,9 +277,9 @@ func (a *app) askDelete(link, title string) {
 // is yes.
 //
 // It is called from the frame, because a dialog is drawn and the answer comes
-// back a frame later. The buttons are "Delete" and "Cancel", in that order,
-// with the destructive one second: a stray Enter should keep the playlist, not
-// lose it.
+// back a frame later. The buttons are "Cancel" and "Delete", in that order, with
+// the destructive one second: a stray Enter should keep the playlist, not lose
+// it.
 func (a *app) confirmDelete(c *ui.Context) {
 	if !a.deleting.open {
 		return

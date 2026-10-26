@@ -39,13 +39,14 @@ mix with an empty body, because there is no stored playlist to browse. That is
 already how the loader worked — it tries InnerTube first and falls back to
 yt-dlp — so a mix takes the same path as any other playlist.
 
-The consequence is that a mix's tracks come back with a title but **no artist**.
-That matters for two things:
+A mix's tracks come back from yt-dlp with a title and a **channel**. The channel
+is the artist when the title does not name one — it is stripped of YouTube's
+`- Topic` suffix, and a name that is really a label (`Various Artists`) is left
+out rather than guessed at. On a real mix that is 528 of 528 tracks naming an
+artist, where before it was none:
 
-- the queue shows titles only, which is what a mix from a link already looked
-  like;
-- Last.fm is not told about them, because it needs an artist and the app will
-  not guess one.
+- the queue shows what it should under the title;
+- Last.fm can record a play, because it has an artist to record it against.
 
 ## The code
 
@@ -67,13 +68,15 @@ is what enforces that.
 
 ```powershell
 go test ./internal/innertube/ -run 'TestMix|TestAWatchLink'
+go test ./internal/ytdlp/ -run 'TestAMixTrackGetsTheArtistOfItsChannel'
 ```
 
-And the real one, which reads a mix from YouTube:
+And the real one, which reads a mix from YouTube through the whole loader:
 
 ```powershell
-go test -tags e2e ./internal/innertube/ -run TestAMixFromATrackLoads
+go test -tags e2e ./internal/playlist/ -run TestAMixFromATrackLoads
 ```
 
 That one checks the mix holds several tracks, that it holds the track it was
-built from, and that every track has an id to play.
+built from, that every track has an id to play, and that the tracks name an
+artist.

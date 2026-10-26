@@ -59,6 +59,44 @@ track played on from 7s and the queue did not move.
 
 ---
 
+## A track still stopped a second or two before its end
+
+**Reported as:** "fix why music stopped before the music end" — again, after the
+recovery above was in place.
+
+**Cause.** Three, and only the last one is subtle.
+
+1. **`-xerror`.** It makes ffmpeg abort the whole process on the first
+   *recoverable* error. googlevideo drops connections mid-stream routinely, so a
+   single dropped read ended the song.
+2. **No reconnect.** ffmpeg was told nothing about reopening a streamed HTTP
+   source that went quiet, so it sat on a dead socket while the place in the
+   track stood still — which the engine then read as a stall.
+3. **A clean end was taken for a break.** YouTube **rounds** `lengthSeconds`, so
+   a track advertised at 3:42 can hold 3:40 of audio. ffmpeg wrote its last
+   sample and exited *cleanly*, leaving the place standing still two seconds
+   short of the length. The stall rule fired, the stream was dropped and
+   resolved again, and the track played on from where it stopped — **three
+   times**, with a wait each time. What you heard was the last seconds of the
+   song three times over, then the next track.
+
+**Fix.** The decoder now reports `Finished()` apart from `Exhausted()`, and a
+clean finish ends the track instead of recovering it. `-xerror` is gone, the
+reconnect flags are in, and the offset is an input option.
+
+**Tests.** `TestAFinishedStreamEndsTheTrack`,
+`TestAFinishedStreamIsNeverRecovered`, `TestABrokenStreamIsStillRecovered`,
+`TestFinishedIsFalseForADecoderThatCannotSay`,
+`TestTheStreamIsAllowedToRecover`, `TestALocalFileIsNotGivenNetworkFlags`,
+`TestTheOffsetComesBeforeTheInput` (pure), and `TestARealTrackPlaysToItsEnd`
+(e2e: plays a real track to its last second).
+
+**Verified:** the e2e check reported **3:06 of 3:07**; and in the running app a
+182-track playlist played a track to its end and moved to the next one at 0:41
+with no silence and no repeat.
+
+---
+
 ## The window froze the moment a track started
 
 **Reported as:** Windows showed "Not Responding" and the app never recovered.
@@ -271,8 +309,10 @@ Worth reading before changing this code.
 2. **Do not decide playback from `Playing()`.** It drops early and it drops
    while buffering. Use the place in the track.
 3. **A stream that breaks is not a track that finished.** Recover it; do not skip.
-4. **Every spawn of a console program needs `proc.Hide`.**
-5. **Every `go build` for a release is wrong.** It is `mygo build`.
-6. **A test may not reach the internet.** Point the client at a stub.
-7. **A fix needs a test that fails without it.** Every bug above has one, and
+4. **A stream that finished is not a stream that broke.** YouTube rounds its
+   lengths, so a clean end short of the metadata is the end. Never recover it.
+5. **Every spawn of a console program needs `proc.Hide`.**
+6. **Every `go build` for a release is wrong.** It is `mygo build`.
+7. **A test may not reach the internet.** Point the client at a stub.
+8. **A fix needs a test that fails without it.** Every bug above has one, and
    for the structural ones I checked the test fails by reverting the fix.

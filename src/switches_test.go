@@ -6,8 +6,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The Look page's two switches were reported as doing nothing: the knob moved
-// and the setting never changed.
+// The Look page's switches were reported as doing nothing: the knob moved and
+// the setting never changed.
 //
 // Two things were wrong. MyGo flips a switch's bound value as the control is
 // built, so the value has to outlive the frame rather than being a fresh local
@@ -18,94 +18,114 @@ import (
 // These tests drive the switch through the same binding the page uses, so they
 // check the wiring rather than the hit area.
 
-// flipSwitch turns a switch the way a click does, through the binding the page
-// gives it, and reports the value the page would read back.
-func flipSwitch(a *app) (shuffle, dynamic bool) {
-	// appearancePage seeds the two fields from the real state as it draws, then
-	// reads them back after. This is the same round trip, with the switch's own
-	// flip in between.
-	a.switchShuffle = a.isShuffle()
-	a.switchDynamic = a.appearance.dynamic
-
-	// What a click does to the binding MyGo holds.
-	a.switchShuffle = !a.switchShuffle
-	a.switchDynamic = !a.switchDynamic
-
-	if a.switchDynamic != a.appearance.dynamic {
-		a.setDynamic(a.switchDynamic)
+// flipDiscord turns the Discord switch the way a click does, through the binding
+// the page gives it, and reports the value the page would read back.
+func flipDiscord(a *app) bool {
+	// appearancePage seeds the field from the real state as it draws, then reads
+	// it back after. This is the same round trip, with the switch's own flip in
+	// between.
+	a.switchDiscord = a.appearance.discord
+	a.switchDiscord = !a.switchDiscord
+	if a.switchDiscord != a.appearance.discord {
+		a.setDiscord(a.switchDiscord)
 	}
-	if a.switchShuffle != a.isShuffle() {
-		a.setShuffle(a.switchShuffle)
-	}
-	return a.isShuffle(), a.appearance.dynamic
+	return a.appearance.discord
 }
 
-// TestTheSwitchesCarryTheirValueAcrossFrames checks the read-back: the page
-// seeds the fields, a click flips them, and the page applies what changed.
-func TestTheSwitchesCarryTheirValueAcrossFrames(t *testing.T) {
+// TestTheSwitchCarriesItsValueAcrossFrames checks the read-back: the page seeds
+// the field, a click flips it, and the page applies what changed.
+func TestTheSwitchCarriesItsValueAcrossFrames(t *testing.T) {
 	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
 
-	shuffle, dynamic := flipSwitch(a)
-	if !shuffle {
-		t.Error("the shuffle switch did not turn shuffle on")
-	}
-	if !dynamic {
-		t.Error("the artwork switch did not turn the artwork colour on")
+	if !flipDiscord(a) {
+		t.Error("the Discord switch did not turn the presence on")
 	}
 }
 
-// TestTheSwitchesToggleBack checks that they are switches and not one-way
-// doors: a second flip turns each one off again.
-func TestTheSwitchesToggleBack(t *testing.T) {
+// TestTheSwitchTogglesBack checks that it is a switch and not a one-way door: a
+// second flip turns it off again.
+func TestTheSwitchTogglesBack(t *testing.T) {
 	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
 
-	flipSwitch(a)
-	shuffle, dynamic := flipSwitch(a)
-
-	if shuffle {
-		t.Error("the shuffle switch did not turn shuffle off again")
-	}
-	if dynamic {
-		t.Error("the artwork switch did not turn the artwork colour off again")
+	flipDiscord(a)
+	if flipDiscord(a) {
+		t.Error("the Discord switch did not turn the presence off again")
 	}
 }
 
-// TestTheSwitchesSurviveTheNextFrame checks the bug the user saw: a switch that
+// TestTheSwitchSurvivesTheNextFrame checks the bug the user saw: a switch that
 // flips and then falls back. After a flip, drawing the page must not undo it.
-func TestTheSwitchesSurviveTheNextFrame(t *testing.T) {
+func TestTheSwitchSurvivesTheNextFrame(t *testing.T) {
 	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
-	flipSwitch(a)
+	flipDiscord(a)
 
-	// Three frames of the real page: it seeds the switch fields from the state
-	// at the top and reads them back at the bottom, so a wrong seed shows up
-	// here as a setting that flips itself off.
+	// Three frames of the real page: it seeds the switch field from the state
+	// at the top and reads it back at the bottom, so a wrong seed shows up here
+	// as a setting that flips itself off.
 	tester := ui.NewTester(a.frame, 1280, 900)
 	for range 3 {
 		tester.Frame()
 	}
 
-	if !a.isShuffle() {
-		t.Error("shuffle fell back off after the page drew again")
-	}
-	if !a.appearance.dynamic {
-		t.Error("the artwork colour fell back off after the page drew again")
+	if !a.appearance.discord {
+		t.Error("the Discord presence fell back off after the page drew again")
 	}
 }
 
-// TestTheSwitchesAreDrawnWithTheirState checks that the page draws the switches
-// from the real state, so the knob matches the setting.
-func TestTheSwitchesAreDrawnWithTheirState(t *testing.T) {
+// TestTheSwitchIsDrawnWithItsState checks that the page draws the switch from
+// the real state, so the knob matches the setting.
+func TestTheSwitchIsDrawnWithItsState(t *testing.T) {
 	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
-	a.shuffle = true
-	a.appearance.dynamic = true
+	a.appearance.discord = true
 
 	tester := ui.NewTester(a.frame, 1280, 900)
 	tester.Frame()
 
-	if !a.switchShuffle {
-		t.Error("the page seeded the shuffle switch off while shuffle is on")
+	if !a.switchDiscord {
+		t.Error("the page seeded the Discord switch off while it is on")
 	}
-	if !a.switchDynamic {
-		t.Error("the page seeded the artwork switch off while it is on")
+}
+
+// TestShuffleIsNotOnTheAppearancePage checks that shuffle has no setting: it is a
+// thing the transport does, and it has a button there. A second switch for it was
+// two controls for one setting.
+func TestShuffleIsNotOnTheAppearancePage(t *testing.T) {
+	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
+	tester := ui.NewTester(a.frame, 1280, 1200)
+	tester.Frame()
+
+	if tester.HasText("Play the queue in a random order.") {
+		t.Errorf("the Appearance page still offers a Shuffle setting: %v", tester.Texts())
+	}
+	if !tester.HasText("Interface theme") {
+		t.Error("the Appearance page lost its theme section too")
+	}
+}
+
+// TestLastFMIsNotOnTheLookPage checks that the page no longer asks for a Last.fm
+// key. Scrobbling still runs for an install that has one in its settings.
+func TestLastFMIsNotOnTheLookPage(t *testing.T) {
+	a := &app{art: newArtwork(), current: -1, page: pageAppearance, scrobble: newScrobbler()}
+	tester := ui.NewTester(a.frame, 1280, 1400)
+	tester.Frame()
+
+	for _, text := range tester.Texts() {
+		if text == "API key" || text == "Shared secret" || text == "Scrobbling" {
+			t.Fatalf("the Look page still asks for Last.fm credentials: %v", tester.Texts())
+		}
+	}
+}
+
+// TestThereIsNoPaletteOrAccentPicker checks the design's rule: the window is
+// paper and ink, so the Look page offers no colour to pick.
+func TestThereIsNoPaletteOrAccentPicker(t *testing.T) {
+	a := &app{art: newArtwork(), current: -1, page: pageAppearance}
+	tester := ui.NewTester(a.frame, 1280, 1400)
+	tester.Frame()
+
+	for _, text := range tester.Texts() {
+		if text == "Palette" || text == "Accent" || text == "Colour from artwork" {
+			t.Fatalf("the Look page still offers a colour picker: %v", tester.Texts())
+		}
 	}
 }

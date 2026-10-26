@@ -90,6 +90,20 @@ type exhaustible interface {
 	Exhausted() bool
 }
 
+// finisher is a decoder that can say its stream reached its own end, rather than
+// breaking on the way.
+//
+// This is the difference between a track that finished and a track worth finding
+// again. A decoder that writes its last sample and exits cleanly has finished,
+// even when the length the metadata promised is a few seconds longer: YouTube
+// rounds `lengthSeconds`, and its audio is often a little shorter than the number
+// it advertises. Without this, such a track was "recovered" three times — a full
+// resolve and a wait each time — and the last few seconds of every song were
+// silence.
+type finisher interface {
+	Finished() bool
+}
+
 // Engine plays a queue of tracks.
 type Engine struct {
 	resolver *ytdlp.Resolver
@@ -537,7 +551,19 @@ func (e *Engine) tick() {
 			return
 		}
 		decoderDone := decoder != nil && decoder.Exhausted()
-		if e.stopped(position, duration, still, decoderDone) {
+		// A decoder that reached its own end has finished the track, whatever
+		// the metadata said the length was. It is still not the moment to move
+		// on: the player holds about a second of audio after the decoder, and
+		// ending now would cut that second off. So the fact is passed to
+		// stopped, which ends the track once the place has stood still — and
+		// does not try to find the stream again.
+		//
+		// This is the case that used to make a song stop early: YouTube rounds
+		// the length it advertises, so the audio ends before the place ever
+		// reaches it, the stream was taken for broken, and it was "found again"
+		// three times before the queue moved on.
+		clean := decoderDone && finished(decoder)
+		if e.stopped(position, duration, still, decoderDone, clean) {
 			return
 		}
 		// A stream that has played on since it was found again gets its tries
@@ -560,7 +586,14 @@ func (e *Engine) tick() {
 // does one still running against a connection that went quiet. What the decoder
 // adds is how long to wait before believing it: once it has finished, only the
 // ring's last second has to play out, so a shorter wait will do.
-func (e *Engine) stopped(position, duration, still time.Duration, decoderDone bool) bool {
+//
+// A decoder that finished cleanly is the one case that is never recovered. Its
+// stream did not break: it wrote its last sample. The metadata's length is the
+// only thing that disagrees, and it is the thing that is wrong — YouTube rounds
+// `lengthSeconds`, and its audio is routinely a second or two shorter. Finding
+// the stream again there plays the same last second twice, three times over, and
+// reads to the listener as a song that stopped early.
+func (e *Engine) stopped(position, duration, still time.Duration, decoderDone, clean bool) bool {
 	if position <= 0 {
 		return false
 	}
@@ -571,7 +604,7 @@ func (e *Engine) stopped(position, duration, still time.Duration, decoderDone bo
 	if still < limit {
 		return false
 	}
-	if nearTheEnd(position, duration) {
+	if clean || nearTheEnd(position, duration) {
 		// YouTube stops serving a track's data at its end, so a stream that
 		// stopped here is the track finishing, not a stream to find again.
 		e.ended()
@@ -583,6 +616,14 @@ func (e *Engine) stopped(position, duration, still time.Duration, decoderDone bo
 	// The tries are used up: the track is over and the queue moves on.
 	e.ended()
 	return true
+}
+
+// finished tells whether a decoder reached its own end, for those that can say.
+func finished(decoder exhaustible) bool {
+	if f, ok := decoder.(finisher); ok {
+		return f.Finished()
+	}
+	return false
 }
 
 // recover finds the stream of the track that is playing again and starts it

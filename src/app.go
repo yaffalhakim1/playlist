@@ -16,8 +16,6 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
-	"github.com/oneo-me/onevra/source/components"
-	"github.com/oneo-me/onevra/source/shells/sidebar"
 
 	"youtube-playlist/internal/innertube"
 	"youtube-playlist/internal/library"
@@ -38,7 +36,6 @@ const sessionInterval = 5 * time.Second
 // The pages of the app.
 const (
 	pageHome       = "home"
-	pagePlaylist   = "playlist"
 	pagePlayer     = "player"
 	pageQueue      = "queue"
 	pageStats      = "stats"
@@ -66,12 +63,15 @@ type app struct {
 
 	page     string
 	link     string
+	// filter narrows the playlist's rows, as its own field types.
 	filter   string
 	playlist *music.Playlist
 	queue    []music.Track
 	visible  []int
 	status   string
 	loading  bool
+	// loadingWhat says what is being read, so the page can say it too.
+	loadingWhat string
 	// openLink is the address of the playlist that is open, which is not the
 	// one in the field: the field is cleared once a playlist opens.
 	openLink string
@@ -80,22 +80,25 @@ type app struct {
 	position  time.Duration
 	duration  time.Duration
 	playing   bool
+	buffering bool
 	volume    float64
 	shuffle   bool
 	repeat    player.Repeat
+	// seekValue and scrubbing are the slider's own state: while the pointer
+	// holds the knob the engine's place must not move it back.
 	seekValue float64
 	scrubbing bool
 	scrubAt   time.Time
 	// sessionAt is when the place in the track was last written down.
 	sessionAt time.Time
 
-	// switchShuffle and switchDynamic are what the Look page's two switches
-	// are bound to. A switch flips the value it is given as it is built, so
-	// the value has to outlive the frame: these are seeded from the real
+	// switchDynamic, switchDiscord and switchSolid are what the Appearance
+	// page's switches are bound to. A switch flips the value it is given as it is
+	// built, so the value has to outlive the frame: these are seeded from the real
 	// state as the page is drawn, and read back after it.
-	switchShuffle bool
 	switchDynamic bool
 	switchDiscord bool
+	switchSolid   bool
 
 	// deleting is the playlist waiting to be deleted, if any.
 	deleting pendingDelete
@@ -108,24 +111,14 @@ type app struct {
 	presence *presence
 
 	// scrobble sends what plays to Last.fm, when an account is connected.
+	//
+	// There is no longer a page to set it up from: the account and the
+	// application's key are read from the settings at startup, and scrobbling
+	// runs quietly in the background for an install that already has them.
 	scrobble *scrobbler
-	// lastfmKey and lastfmSecret are the application's credentials as they are
-	// being typed in the Look page, kept so the fields show them.
-	lastfmKey    string
-	lastfmSecret string
-	// lastfmSaved says a key has been kept, so the page offers Connect rather
-	// than asking for it again.
-	lastfmSaved bool
-	// lastfmSaving says a key is being checked against Last.fm.
-	lastfmSaving bool
-	// lastfmNotice is what the page says about the last attempt to save.
-	lastfmNotice string
 	// chosenTrack says the next track to play was picked by the user, which
 	// Last.fm records as chosenByUser.
 	chosenTrack bool
-	// switchLastFM is the Last.fm pause switch's value for one frame, read back
-	// after the frame is drawn.
-	switchLastFM bool
 
 	recents []library.Recent
 	art     *artwork
@@ -139,10 +132,13 @@ type app struct {
 
 	appearance appearance
 
-	list          components.ListState
-	queueL        components.ListState
+	list          ui.ListState
+	queueL        ui.ListState
 	sidebarPixels float32
-	closed        bool
+	// railClosed says the sidebar is hidden, which is a choice the user makes
+	// with the header's button and the app keeps for the run.
+	railClosed bool
+	closed     bool
 }
 
 // appearance holds what the user chose about the look of the app.
@@ -150,14 +146,31 @@ type appearance struct {
 	// mode is "system", "light" or "dark".
 	mode string
 	// accent is the colour of the accent, as a hex string, empty for the
-	// colour of the palette.
+	// paper's own ink.
 	accent string
-	// dynamic takes the colour from the artwork of the track that plays.
+	// dynamic takes the accent from the artwork of the track that plays.
 	dynamic bool
-	// palette is the id of the colour scheme, empty for Onevra's own.
-	palette string
+	// material is the window's backdrop: "", "tabbed", "mica" or "acrylic".
+	material string
+	// solid says the window draws its own opaque face instead of the material.
+	solid bool
 	// discord shows what plays in Discord.
 	discord bool
+}
+
+// materialOf returns the backdrop a window is created with.
+//
+// A window has to be born with a material to be able to change it later, so one is
+// always asked for unless the user has turned transparency off. The view paints
+// its own face over it either way, so an unsupported desktop loses nothing.
+func materialOf(a appearance) mygo.Vibrancy {
+	if a.solid {
+		return mygo.VibrancyNone
+	}
+	if a.material == "" {
+		return mygo.VibrancyMica
+	}
+	return mygo.Vibrancy(a.material)
 }
 
 // Run opens the window and runs the app until it closes.
@@ -184,8 +197,15 @@ func (a *app) setup() {
 			a.volume = store.Volume()
 			a.shuffle = store.Shuffle()
 			a.repeat = repeatByName(store.Repeat())
-			mode, accent, dynamic, palette := store.Appearance()
-			a.appearance = appearance{mode: mode, accent: accent, dynamic: dynamic, palette: palette}
+			mode, accent, dynamic, _ := store.Appearance()
+			material, solid := store.Material()
+			a.appearance = appearance{
+				mode:     mode,
+				accent:   accent,
+				dynamic:  dynamic,
+				material: material,
+				solid:    solid,
+			}
 			a.appearance.discord = store.Discord()
 		}
 	}
@@ -200,16 +220,13 @@ func (a *app) setup() {
 		a.presence.enable(true)
 	}
 
-	// Last.fm: the application's key and the account are the user's, entered in
-	// the Look page, so a build carries neither.
+	// Last.fm: the application's key and the account are the user's, and are
+	// read from the settings so a build carries neither. There is no page to
+	// enter them on any more, so an install without them simply does not
+	// scrobble.
 	a.scrobble = newScrobbler()
 	if a.store != nil {
 		key, secret, user, paused := a.store.LastFM()
-		a.lastfmKey, a.lastfmSecret = key, secret
-		// A key that is already kept is not asked for again; the fields are
-		// cleared so the secret is not held in memory for the page to show.
-		a.lastfmSaved = key != "" && secret != ""
-		a.lastfmKey, a.lastfmSecret = "", ""
 		if path, err := mygo.App.Path(mygo.PathUserData); err == nil {
 			a.scrobble.open(path)
 			a.scrobble.configure(key, secret)
@@ -227,22 +244,20 @@ func (a *app) setup() {
 	a.engine.SetShuffle(a.shuffle)
 	a.engine.SetRepeat(a.repeat)
 
-	shell := sidebar.NewShell(sidebar.ShellOptions{
-		Title:        "Playlist",
-		Width:        1280,
-		Height:       840,
-		MinWidth:     960,
-		MinHeight:    620,
-		StateKey:     "playlist",
-		Theme:        a.theme,
-		Left:         a.sidebar,
-		Content:      a.content,
-		ContentTitle: a.contentTitle,
-		LeftWidth:    236,
-		LeftMinWidth: 208,
-		LeftMaxWidth: 320,
+	a.win = mygo.NewWindow(mygo.WindowOptions{
+		Title:         "Playlist",
+		Width:         1280,
+		Height:        840,
+		MinWidth:      960,
+		MinHeight:     620,
+		StateKey:      "playlist",
+		TitleBarStyle: mygo.TitleBarHidden,
+		// The window is created with its material, because on Windows a window
+		// created without one cannot take one later: `SetVibrancy` changes the
+		// material of a window that has one, and shows none in the others.
+		Vibrancy: materialOf(a.appearance),
+		Content:  ui.View(a.frame),
 	})
-	a.win = shell.Window()
 	// The window owns the taskbar icon: set it here rather than trusting the
 	// executable's resources, which a dev build does not have.
 	if err := a.win.SetIcon(appIcon); err != nil {
@@ -327,8 +342,8 @@ func (a *app) restoredState() (restored, bool) {
 	a.openLink = session.Link
 	a.playlist = &list
 	a.queue = list.Tracks
-	a.visible = visibleTracks(list.Tracks, "")
-	a.page = pagePlaylist
+	a.visible = allTracks(list.Tracks)
+	a.page = pageQueue
 
 	// Carry on at the track that played, at the place in it. A track that is
 	// no longer in the playlist starts the queue instead.
@@ -420,12 +435,12 @@ func (a *app) apply(event player.Event) {
 				a.chosenTrack = false
 			}
 		}
-		a.playing = event.State == player.StatePlaying
+		a.setPlayState(event.State)
 		if a.presence != nil {
 			a.presence.show(a.trackLocked(), a.playing)
 		}
 	case player.KindState:
-		a.playing = event.State == player.StatePlaying
+		a.setPlayState(event.State)
 		a.tray.refresh(a.trackLocked(), a.playing)
 		if a.presence != nil {
 			a.presence.show(a.trackLocked(), a.playing)
@@ -462,6 +477,16 @@ func (a *app) apply(event player.Event) {
 		a.status = event.Err.Error()
 		a.notice = &notice{title: "That track will not play", body: event.Err.Error(), kind: "error"}
 	}
+}
+
+// setPlayState records what the playback is doing. The caller holds the lock.
+//
+// The two flags say different things and the page draws both: a track that is
+// held is not a track that has not started, and a track whose stream is being
+// found is neither.
+func (a *app) setPlayState(state player.State) {
+	a.playing = state == player.StatePlaying
+	a.buffering = state == player.StateBuffering
 }
 
 // trackLocked returns the track that plays. The caller holds the app's lock.
@@ -502,30 +527,19 @@ func (a *app) contentTitle(c *ui.Context) {
 	ui.Row(c).FillWidth().Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 		ui.Spacer(c)
 		switch a.page {
-		case pageHome, pagePlaylist:
-			button := components.Button(c, "Paste link", components.ButtonSecondary)
-			if button.Clicked() {
+		case pageHome, pageQueue:
+			if b := plainButton(c, "Paste link"); b.Clicked() {
 				a.pasteLink()
 			}
 		case pageStats:
-			button := components.Button(c, "Clear history", components.ButtonGhost)
-			if button.Clicked() {
+			if b := quietButton(c, "Clear history"); b.Clicked() {
 				a.clearHistory()
 			}
 		}
 	})
 }
 
-// frame draws the window the way the app shows it: the shell's layout, the
-// page, the shortcuts, and the messages.
-//
-// The window itself uses Onevra's sidebar shell, which owns the layout. This
-// is the same view without a window, so a test draws what the window shows.
-func (a *app) frame(c *ui.Context) {
-	a.shortcuts(c)
-	a.shellView(c)
-	a.confirmDelete(c)
-} // load opens the playlist of the link and starts it.
+// load opens the playlist of the link and starts it.
 //
 // A playlist that was read before comes from the cache, so opening it again
 // costs no network at all; only a link the app has never seen is read from
@@ -545,6 +559,7 @@ func (a *app) load() {
 
 	a.mu.Lock()
 	a.loading = true
+	a.loadingWhat = "playlist"
 	// The spinner says a load is running, so the status line is cleared: it is
 	// for what went wrong, and the two would otherwise both speak.
 	a.status = ""
@@ -580,9 +595,7 @@ func (a *app) load() {
 //
 // This is the one mix the app can offer without an account: a mix is built
 // around a track, so a video id is all it needs. The list YouTube builds for it
-// is read by yt-dlp, which is the only reader that can see it, so the tracks
-// come back with titles but without artists. That is the same as any other mix
-// opened from a link, which is what this is.
+// is read by yt-dlp, which is the only reader that can see it.
 func (a *app) playMix() {
 	a.mu.Lock()
 	track := a.trackLocked()
@@ -610,14 +623,15 @@ func (a *app) playMix() {
 func (a *app) showPlaylist(link string, list music.Playlist) {
 	a.mu.Lock()
 	a.loading = false
+	a.loadingWhat = ""
 	a.status = ""
 	a.playlist = &list
 	a.queue = list.Tracks
-	a.visible = visibleTracks(list.Tracks, "")
+	a.visible = allTracks(list.Tracks)
 	a.filter = ""
 	a.current = 0
 	a.position = 0
-	a.page = pagePlaylist
+	a.page = pageQueue
 	// The form did its job, so it is cleared: the link is in the sidebar now,
 	// and leaving it in the field invites pasting it again.
 	a.link = ""
@@ -653,16 +667,31 @@ func (a *app) rememberSessionFor(link string) {
 	a.store.SetSession(library.Session{Link: link, TrackID: track.ID, Position: position})
 }
 
+
 // visibleTracks returns the places of the tracks whose title or artist holds
 // the text.
+// refilter recomputes which rows the filter lets through.
+//
+// It runs when the field changes rather than on every frame: the queue is a slice
+// of titles already in memory, but a thousand rows filtered sixty times a second
+// is work nobody asked for.
+func (a *app) refilter() {
+	a.mu.Lock()
+	queue := a.queue
+	filter := a.filter
+	a.visible = visibleTracks(queue, filter)
+	a.mu.Unlock()
+}
+
+// visibleTracks returns the places of the tracks the filter lets through.
+//
+// A track matches on its title, its artist or its album, because a reader who
+// types "nujabes" means the artist and one who types "metaphorical" means the
+// album, and the field cannot tell them apart.
 func visibleTracks(tracks []music.Track, filter string) []int {
 	filter = strings.ToLower(strings.TrimSpace(filter))
 	if filter == "" {
-		indexes := make([]int, len(tracks))
-		for i := range tracks {
-			indexes[i] = i
-		}
-		return indexes
+		return allTracks(tracks)
 	}
 	var indexes []int
 	for i, track := range tracks {
@@ -670,6 +699,39 @@ func visibleTracks(tracks []music.Track, filter string) []int {
 		if strings.Contains(haystack, filter) {
 			indexes = append(indexes, i)
 		}
+	}
+	return indexes
+}
+
+// resync reads the open playlist from YouTube again, ignoring the cache.
+//
+// It is the one action that spends the network on a playlist the app already has,
+// so it says what it is doing: the page keeps its tracks while the read runs, and
+// only replaces them when the answer arrives.
+func (a *app) resync() {
+	a.mu.Lock()
+	link := a.openLink
+	a.mu.Unlock()
+	if link == "" {
+		return
+	}
+	if a.store != nil {
+		a.store.ForgetCache(link)
+	}
+	a.mu.Lock()
+	a.link = link
+	a.mu.Unlock()
+	a.load()
+}
+
+// allTracks returns the places of every track of a queue, in order.
+//
+// It is the one shape the pages draw: a row is a place in the queue, so the list
+// and the table agree about what row 3 is.
+func allTracks(tracks []music.Track) []int {
+	indexes := make([]int, len(tracks))
+	for i := range tracks {
+		indexes[i] = i
 	}
 	return indexes
 }

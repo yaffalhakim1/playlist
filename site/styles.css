@@ -1,516 +1,987 @@
-/* Playlist — landing page.
+/* The landing page.
  *
- * The colours are the app's own, from src/palettes.go: the Onevra palette the
- * default build ships with. Nothing here is a new colour; every value has a
- * contrast figure in the comment beside it, computed rather than estimated.
+ * The page is paper and ink, because the app is paper and ink. It has one
+ * primary action, one typeface, one curve per motion, and it shows the product
+ * at full size rather than cropping it into fragments.
  *
- * The scale is the app's too: a 8px base, a 24px inset, and one rounding for
- * cards. A page about a product should look like the product.
+ * Every length below resolves through a token in tokens.css. Nothing here
+ * writes a colour, a size or a curve by hand, so the whole page moves as one
+ * when a token moves.
  */
 
-:root {
-  /* Light: the app's default palette. */
-  --page: #fcfbf9;
-  --card: #fefefd;
-  --ink: #33332f;        /* 12.27:1 on the page */
-  --muted: #72726a;      /*  4.69:1 on the page, AA for body */
-  --accent: #bd481b;     /*  4.94:1 on the page */
-  --on-accent: #ffffff;  /*  5.11:1 on the accent */
-  --hairline: #e8e5df;
-  --shadow: 42 38 32;
+/* ------------------------------------------------------------- the typeface */
 
-  /* The scale. Every distance is one of these, or a multiple. */
-  --s1: 8px;
-  --s2: 16px;
-  --s3: 24px;
-  --s4: 32px;
-  --s5: 48px;
-  --s6: 64px;
-  --s7: 96px;
-  --s8: 128px;
+@import url("./tokens.css");
+@import url("./base.css");
 
-  --radius: 24px;
-  --radius-small: 12px;
-
-  /* Type. One family, four sizes, three weights. */
-  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-
-  --display: clamp(2.6rem, 1.4rem + 5vw, 5rem);
-  --headline: clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem);
-  --title: clamp(1.15rem, 1.05rem + 0.4vw, 1.35rem);
-  --body: clamp(1rem, 0.96rem + 0.2vw, 1.0625rem);
-  --small: 0.875rem;
-
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+/* Plus Jakarta Sans, the face the app embeds, so the page and the window in
+ * its screenshots are set in the same type. Four weights, subset to Latin, and
+ * 15 KB each rather than the 126 KB the full file weighs. */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("assets/fonts/PlusJakartaSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
 }
 
-:root[data-theme="dark"] {
-  --page: #211f1c;
-  --card: #2b2925;
-  --ink: #eeeae2;        /* 13.70:1 on the page */
-  --muted: #bdb6aa;      /*  8.17:1 on the page */
-  --accent: #ed986e;     /*  7.29:1 on the page */
-  --on-accent: #211f1c;  /*  7.29:1 on the accent */
-  --hairline: #3a3733;
-  --shadow: 0 0 0;
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("assets/fonts/PlusJakartaSans-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
 }
 
-/* --- reset ------------------------------------------------------------- */
-
-*, *::before, *::after { box-sizing: border-box; }
-
-html {
-  /* The anchor links should not put a heading under the sticky header. */
-  scroll-padding-top: var(--s7);
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
-  margin: 0;
-  background: var(--page);
-  color: var(--ink);
-  font-family: var(--font);
-  font-size: var(--body);
-  line-height: 1.6;
-  /* Large text is tracked tight, small text open. Apple's own rule, and the
-     app follows it too. */
-  letter-spacing: -0.006em;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-
-img { max-width: 100%; height: auto; display: block; }
-
-h1, h2, h3 {
-  margin: 0;
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("assets/fonts/PlusJakartaSans-SemiBold.woff2") format("woff2");
   font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.022em;
-  text-wrap: balance;
+  font-style: normal;
+  font-display: swap;
 }
 
-p { margin: 0; }
-ul { margin: 0; padding: 0; list-style: none; }
-
-code {
-  font-family: var(--mono);
-  font-size: 0.9em;
-  /* The ink, not the muted colour: the tint behind the chip lifts the
-     background enough that muted text falls to 4.21:1, under the 4.5:1 that
-     body text needs. Full-strength ink is 11.8:1 on the same tint. */
-  color: var(--ink);
-  background: color-mix(in oklab, var(--ink) 6%, transparent);
-  padding: 0.1em 0.35em;
-  border-radius: 6px;
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("assets/fonts/PlusJakartaSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
 }
 
-a { color: var(--accent); text-underline-offset: 0.2em; }
-a:hover { text-decoration-thickness: 2px; }
+/* ---------------------------------------------------------------- the nav */
 
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-  border-radius: 4px;
-}
-
-.skip {
-  position: absolute;
-  left: -9999px;
-  top: var(--s2);
-  background: var(--card);
-  color: var(--ink);
-  padding: var(--s1) var(--s2);
-  border-radius: var(--radius-small);
-  z-index: 10;
-}
-.skip:focus { left: var(--s2); }
-
-/* --- the header ------------------------------------------------------- */
-
-.site-head {
+/* A floating pill, detached from the top edge, so the page reads as one sheet
+ * of paper with a control resting on it rather than as a website with a bar. */
+.nav {
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 50;
+  padding-top: var(--s-6);
+  pointer-events: none;
+}
+
+.nav__pill {
+  pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: var(--s3);
-  padding: var(--s2) var(--s3);
-  /* Glass over the content, which is the one place a blur belongs: the
-     floating functional layer, never the content itself. */
-  background: color-mix(in oklab, var(--page) 82%, transparent);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  border-bottom: 1px solid transparent;
-  transition: border-color 200ms var(--ease-out);
-  /* A narrow window has no room for the sections beside the name and the
-     switch. They wrap rather than push the switch off the edge. */
-  flex-wrap: wrap;
-  row-gap: var(--s1);
+  gap: var(--s-6);
+  width: max-content;
+  max-width: calc(100% - var(--gutter) * 2);
+  margin-inline: auto;
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-6);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--card) 78%, transparent);
+  border: 1px solid var(--rule);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  transition: box-shadow var(--dur-long) var(--ease-out),
+    border-color var(--dur-long) var(--ease-out);
 }
 
-.site-head[data-stuck="true"] { border-bottom-color: var(--hairline); }
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--s1);
-  color: var(--ink);
-  text-decoration: none;
-  font-weight: 600;
-  letter-spacing: -0.012em;
-}
-.brand-mark { width: 28px; height: 28px; }
-
-.site-head nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s3);
-  margin-left: auto;
-  font-size: var(--small);
+.nav[data-stuck="true"] .nav__pill {
+  box-shadow: var(--shadow-card);
+  border-color: var(--rule-strong);
 }
 
-/* Under about 560px the sections do not fit beside the name, so they take a
-   row of their own and the switch stays on the first. */
-@media (max-width: 560px) {
-  .site-head { gap: var(--s2); }
-  .site-head nav {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
-    gap: var(--s2);
-  }
-  .theme { margin-left: auto; }
-}
-.site-head nav a {
-  color: var(--muted);
-  text-decoration: none;
-  transition: color 160ms var(--ease-out);
-}
-.site-head nav a:hover { color: var(--ink); }
-
-.theme {
+.wordmark {
   display: inline-flex;
   align-items: center;
-  gap: var(--s1);
-  /* 44px tall: a comfortable target, and it clears the pointer minimum. */
-  min-height: 44px;
-  padding: 0 var(--s2);
-  font: inherit;
-  font-size: var(--small);
-  color: var(--muted);
-  background: transparent;
-  border: 1px solid var(--hairline);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out);
-}
-.theme:hover { color: var(--ink); border-color: var(--muted); }
-
-/* The icon is drawn, not a character: a disc that is filled in the dark and
-   outlined in the light, so the button says what it will do. */
-.theme-icon {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
-  background: transparent;
-  transition: background 200ms var(--ease-out), transform 200ms var(--ease-out);
-}
-:root[data-theme="dark"] .theme-icon {
-  background: currentColor;
-  transform: scale(0.82);
+  gap: var(--s-2);
+  font-weight: 600;
+  font-size: var(--t-body);
+  letter-spacing: var(--track-title);
 }
 
-/* --- layout ----------------------------------------------------------- */
-
-main > section {
-  /* One inset for the page, and one width for the text: a measure past about
-     70 characters is hard to read, whatever the window. */
-  padding: var(--s7) var(--s3);
-  max-width: 1180px;
-  margin: 0 auto;
+/* The mark: five bars, the one that plays is tallest. It is the app's icon
+ * idea drawn small, so the brand is the product and not a separate logo. */
+.wordmark__mark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 15px;
 }
 
-.hero { padding-top: var(--s6); }
-
-.hero h1 {
-  font-size: var(--display);
-  letter-spacing: -0.035em;
-  line-height: 1.02;
-  max-width: 16ch;
+.wordmark__mark i {
+  display: block;
+  width: 2.5px;
+  border-radius: 1px;
+  background: var(--ink);
 }
 
-.lede {
-  margin-top: var(--s3);
-  max-width: 56ch;
-  color: var(--muted);
-  font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
-  line-height: 1.5;
-}
+.wordmark__mark i:nth-child(1) { height: 6px; }
+.wordmark__mark i:nth-child(2) { height: 11px; }
+.wordmark__mark i:nth-child(3) { height: 15px; }
+.wordmark__mark i:nth-child(4) { height: 9px; }
+.wordmark__mark i:nth-child(5) { height: 5px; }
 
-.cta {
+.nav__links {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-  margin-top: var(--s4);
+  align-items: center;
+  gap: var(--s-1);
 }
 
-.button {
+.nav__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-h);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  font-size: var(--t-body);
+  font-weight: 500;
+  color: var(--muted);
+  transition: color var(--dur-short) ease, background-color var(--dur-short) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nav__links a:hover {
+    color: var(--ink);
+    background: var(--sunken);
+  }
+}
+
+.nav__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* The theme switch. Three states in the app; two on the page, because a page
+ * cannot follow a desktop it cannot ask about more than once. */
+.theme-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 44px: the smallest comfortable target. */
-  min-height: 44px;
-  padding: 0 var(--s3);
-  border-radius: 999px;
-  font-weight: 500;
-  font-size: var(--body);
-  text-decoration: none;
-  border: 1px solid transparent;
-  transition: background 160ms var(--ease-out), border-color 160ms var(--ease-out),
-              transform 160ms var(--ease-out);
+  width: var(--control-h);
+  height: var(--control-h);
+  border-radius: var(--r-pill);
+  color: var(--muted);
+  transition: color var(--dur-short) ease, background-color var(--dur-short) ease,
+    transform var(--dur-press) var(--ease-press);
 }
-.button:active { transform: scale(0.98); }
 
-.button-primary {
-  background: var(--accent);
-  color: var(--on-accent);
+@media (hover: hover) and (pointer: fine) {
+  .theme-toggle:hover {
+    color: var(--ink);
+    background: var(--sunken);
+  }
 }
-.button-primary:hover { background: color-mix(in oklab, var(--accent) 88%, var(--ink)); }
 
-.button-quiet {
+.theme-toggle:active {
+  transform: scale(0.94);
+}
+
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.theme-toggle .icon-moon { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+
+/* The hamburger, which becomes an X. The lines rotate into place; they never
+ * disappear and reappear, because a menu that teleports feels broken. */
+.nav__burger {
+  display: none;
+  position: relative;
+  width: var(--control-h);
+  height: var(--control-h);
+  border-radius: var(--r-pill);
   color: var(--ink);
-  border-color: var(--hairline);
-  background: var(--card);
 }
-.button-quiet:hover { border-color: var(--muted); }
 
-.cta-note {
-  margin-top: var(--s2);
-  font-size: var(--small);
+.nav__burger i {
+  position: absolute;
+  left: 12px;
+  width: 16px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  transition: transform var(--dur-long) var(--ease-in-out),
+    opacity var(--dur-short) var(--ease-out);
+}
+
+.nav__burger i:nth-child(1) { top: 16px; }
+.nav__burger i:nth-child(2) { top: 20px; }
+.nav__burger i:nth-child(3) { top: 24px; }
+
+.nav[data-open="true"] .nav__burger i:nth-child(1) { transform: translateY(4px) rotate(45deg); }
+.nav[data-open="true"] .nav__burger i:nth-child(2) { opacity: 0; }
+.nav[data-open="true"] .nav__burger i:nth-child(3) { transform: translateY(-4px) rotate(-45deg); }
+
+/* The overlay the burger opens. */
+.menu {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  align-content: center;
+  gap: var(--s-2);
+  padding: var(--s-24) var(--gutter);
+  background: color-mix(in oklab, var(--page) 86%, transparent);
+  backdrop-filter: blur(28px) saturate(1.2);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-long) var(--ease-out),
+    visibility 0s linear var(--dur-long);
+}
+
+.menu[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--dur-long) var(--ease-out), visibility 0s;
+}
+
+.menu a {
+  font-size: var(--t-title);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+  padding-block: var(--s-3);
+  border-bottom: 1px solid var(--rule);
+  transform: translateY(16px);
+  opacity: 0;
+  transition: transform var(--dur-long) var(--ease-out),
+    opacity var(--dur-long) var(--ease-out);
+}
+
+.menu[data-open="true"] a {
+  transform: none;
+  opacity: 1;
+}
+
+.menu[data-open="true"] a:nth-child(1) { transition-delay: 80ms; }
+.menu[data-open="true"] a:nth-child(2) { transition-delay: 130ms; }
+.menu[data-open="true"] a:nth-child(3) { transition-delay: 180ms; }
+.menu[data-open="true"] a:nth-child(4) { transition-delay: 230ms; }
+
+@media (max-width: 52rem) {
+  .nav__links { display: none; }
+  .nav__burger { display: inline-flex; }
+  .nav__pill { gap: var(--s-2); padding-left: var(--s-4); }
+}
+
+/* --------------------------------------------------------------- controls */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: var(--control-h);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  font-size: var(--t-body);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color var(--dur-short) ease,
+    border-color var(--dur-short) ease, color var(--dur-short) ease,
+    transform var(--dur-press) var(--ease-press);
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn--primary {
+  background: var(--action);
+  color: var(--action-ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn--primary:hover {
+    background: color-mix(in oklab, var(--action) 86%, var(--page));
+  }
+}
+
+.btn--quiet {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .btn--quiet:hover {
+    border-color: var(--rule-strong);
+    background: var(--rail);
+  }
+}
+
+.btn--small {
+  min-height: 36px;
+  padding: var(--s-1) var(--s-3);
+  font-size: var(--t-body);
+}
+
+/* -------------------------------------------------------------- the shell */
+
+.section {
+  padding-block: clamp(var(--s-16), 9vw, var(--s-24));
+}
+
+.section--tight {
+  padding-block: clamp(var(--s-12), 6vw, var(--s-16));
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--t-caption);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
-/* --- shots ------------------------------------------------------------ */
+.eyebrow::before {
+  content: "";
+  width: 18px;
+  height: 1px;
+  background: var(--rule-strong);
+}
 
-.shot {
-  margin: 0;
-  border-radius: var(--radius);
+/* --------------------------------------------------------------- the hero */
+
+.hero {
+  padding-top: clamp(var(--s-16), 10vw, var(--s-24));
+  padding-bottom: clamp(var(--s-12), 6vw, var(--s-16));
+}
+
+.hero__text {
+  display: grid;
+  gap: var(--s-8);
+  max-width: 680px;
+}
+
+/* The one gradient on the page, on the heading only. It is derived from the
+ * ink and the page, so it is correct in both schemes without a second rule. */
+.hero h1 {
+  font-size: var(--t-display);
+  font-weight: 600;
+  letter-spacing: var(--track-display);
+  line-height: var(--lead-display);
+  background: linear-gradient(
+    90deg,
+    var(--ink) 8%,
+    color-mix(in oklab, var(--ink) 52%, var(--page)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero__lead {
+  max-width: 54ch;
+}
+
+.hero__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+}
+
+.hero__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  padding-top: var(--s-2);
+  font-size: var(--t-caption);
+  color: var(--muted);
+}
+
+.hero__facts span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.hero__facts span + span::before {
+  content: "";
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--rule-strong);
+  margin-right: var(--s-2);
+}
+
+/* The window: a card with the screenshot inside it, at full size.
+ * The outer radius is 24 and the gap is 8, so the inner radius is 16. */
+.window {
+  margin-top: clamp(var(--s-10), 5vw, var(--s-16));
+  padding: var(--s-2);
+  border-radius: var(--r-card);
+  background: var(--card);
+  border: 1px solid var(--rule);
+  box-shadow: var(--shadow-window);
+}
+
+.window img {
+  width: 100%;
+  border-radius: var(--r-stock);
+  border: 1px solid var(--rule);
+}
+
+.window figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-2) var(--s-1);
+  font-size: var(--t-caption);
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------- the tagline reveal */
+
+/* The page's one big statement. It is set in the display size, split into
+ * words, and each word lights as it crosses the trigger line. */
+.tagline {
+  padding-block: clamp(var(--s-16), 10vw, var(--s-24));
+  border-block: 1px solid var(--rule);
+  background: var(--rail);
+}
+
+.tagline p {
+  max-width: 22ch;
+  font-size: var(--t-display);
+  font-weight: 600;
+  letter-spacing: var(--track-display);
+  line-height: var(--lead-display);
+}
+
+.tagline .word {
+  opacity: 0.26;
+  transition: opacity var(--dur-long) var(--ease-out);
+}
+
+.tagline .word[data-lit="true"] {
+  opacity: 1;
+}
+
+/* The marked phrase keeps its ink block, and the words inside it still light
+ * one at a time, so the emphasis arrives with the sentence rather than before
+ * it. */
+.tagline .mark {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 10px;
+  padding: 0 0.1em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* --------------------------------------------------------------- benefits */
+
+.benefits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--s-4);
+  margin-top: var(--s-12);
+}
+
+.benefit {
+  display: grid;
+  align-content: start;
+  gap: var(--s-3);
+  padding: var(--s-8);
+  border-radius: var(--r-card);
+  background: var(--card);
+  border: 1px solid var(--rule);
+}
+
+.benefit__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--sunken);
+  color: var(--ink);
+  margin-bottom: var(--s-1);
+}
+
+.benefit__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.benefit h3 {
+  font-size: var(--t-body);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: var(--lead-title);
+}
+
+.benefit p {
+  font-size: var(--t-body);
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------- how it works */
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s-8);
+  margin-top: var(--s-12);
+  counter-reset: step;
+}
+
+.step {
+  display: grid;
+  align-content: start;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--rule-strong);
+  counter-increment: step;
+}
+
+.step::before {
+  content: counter(step, decimal-leading-zero);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--t-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.step h3 {
+  font-size: var(--t-lead);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+  line-height: var(--lead-title);
+}
+
+.step p {
+  font-size: var(--t-body);
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------------- the tour */
+
+.tour {
+  display: grid;
+  gap: clamp(var(--s-16), 8vw, var(--s-24));
+  margin-top: var(--s-12);
+}
+
+.tour__item {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(var(--s-6), 5vw, var(--s-16));
+  align-items: center;
+}
+
+.tour__item:nth-child(even) .tour__text {
+  order: 2;
+}
+
+.tour__text {
+  display: grid;
+  align-content: center;
+  gap: var(--s-3);
+}
+
+.tour__text h3 {
+  font-size: var(--t-headline);
+  font-weight: 600;
+  letter-spacing: var(--track-headline);
+  line-height: var(--lead-headline);
+  max-width: 20ch;
+}
+
+.tour__text p {
+  font-size: var(--t-body);
+  color: var(--muted);
+  max-width: 44ch;
+}
+
+/* The same window card, smaller, so four screens fit without a crop. */
+.tour .window {
+  margin-top: 0;
+  padding: var(--s-1);
+}
+
+.tour .window img {
+  border-radius: 20px;
+}
+
+@media (max-width: 60rem) {
+  .tour__item,
+  .tour__item:nth-child(even) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tour__item:nth-child(even) .tour__text {
+    order: 0;
+  }
+
+  .tour .window {
+    padding: var(--s-2);
+  }
+
+  .tour .window img {
+    border-radius: var(--r-stock);
+  }
+}
+
+/* -------------------------------------------------------------- the accents */
+
+/* The one interactive demonstration: five tones, and the page wears the one
+ * you pick. It is a real setting of the app, not a decoration. */
+.accents {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(var(--s-6), 5vw, var(--s-16));
+  align-items: center;
+  padding: clamp(var(--s-6), 4vw, var(--s-10));
+  border-radius: var(--r-card);
+  background: var(--card);
+  border: 1px solid var(--rule);
+}
+
+.accents__text {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.accents__text h3 {
+  font-size: var(--t-title);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+  line-height: var(--lead-title);
+}
+
+.accents__text p {
+  font-size: var(--t-body);
+  color: var(--muted);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.swatch {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-pill);
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+  transition: transform var(--dur-short) var(--ease-out),
+    box-shadow var(--dur-short) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .swatch:hover {
+    transform: scale(1.08);
+  }
+}
+
+.swatch[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12), 0 0 0 3px var(--card), 0 0 0 5px var(--ink);
+}
+
+.swatch:active {
+  transform: scale(0.96);
+}
+
+.swatch__name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  /* A hairline and a shadow too faint to notice: the card reads as a surface,
-     not as a box drawn around a picture. */
-  border: 1px solid var(--hairline);
-  box-shadow: 0 1px 0 0 rgb(var(--shadow) / 0.03),
-              0 24px 60px -32px rgb(var(--shadow) / 0.22);
-  background: var(--card);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-.shot img { width: 100%; }
-
-.shot figcaption {
-  padding: var(--s2) var(--s3);
-  font-size: var(--small);
-  color: var(--muted);
-  border-top: 1px solid var(--hairline);
+@media (max-width: 60rem) {
+  .accents {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
-.shot-hero { margin-top: var(--s6); }
+/* ------------------------------------------------------------------- proof */
 
-/* --- the claim -------------------------------------------------------- */
-
-.claim {
-  border-top: 1px solid var(--hairline);
-  border-bottom: 1px solid var(--hairline);
+/* What is true about the build, in numbers a reader can check. */
+.proof {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--s-6);
+  margin-top: var(--s-8);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--rule);
 }
-.claim p {
-  max-width: 62ch;
-  font-size: var(--headline);
-  line-height: 1.35;
-  letter-spacing: -0.015em;
+
+.proof div {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.proof dt {
+  font-size: var(--t-caption);
   font-weight: 500;
-  text-wrap: balance;
-}
-
-/* --- features --------------------------------------------------------- */
-
-.features h2, .appearances h2, .gallery h2, .download h2 {
-  font-size: var(--headline);
-  margin-bottom: var(--s2);
-}
-
-.section-lede {
-  max-width: 56ch;
   color: var(--muted);
-  margin-bottom: var(--s5);
 }
 
-.feature-grid {
-  display: grid;
-  gap: var(--s3);
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
-  margin-top: var(--s5);
+.proof dd {
+  margin: 0;
+  font-size: var(--t-lead);
+  font-weight: 600;
+  letter-spacing: var(--track-title);
+  font-variant-numeric: tabular-nums;
 }
 
-.feature {
-  padding: var(--s3);
-  background: var(--card);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
+/* --------------------------------------------------------------------- faq */
+
+.faq {
+  max-width: 760px;
+  margin-top: var(--s-10);
+  border-top: 1px solid var(--rule);
 }
 
-.feature h3 {
-  font-size: var(--title);
-  margin-bottom: var(--s1);
-  letter-spacing: -0.012em;
+.faq details {
+  border-bottom: 1px solid var(--rule);
 }
 
-.feature p {
-  color: var(--muted);
-  font-size: var(--body);
-}
-
-/* Two of the six run wider, which keeps the grid from reading as a set of
-   identical tiles: the content decides the shape, not the layout. */
-@media (min-width: 860px) {
-  .feature-wide { grid-column: span 2; }
-}
-
-/* --- appearances ------------------------------------------------------ */
-
-.pair {
-  display: grid;
-  gap: var(--s3);
-  grid-template-columns: 1fr;
-}
-@media (min-width: 860px) {
-  .pair { grid-template-columns: 1fr 1fr; }
-}
-
-/* --- gallery ---------------------------------------------------------- */
-
-.gallery-grid {
-  display: grid;
-  gap: var(--s3);
-  grid-template-columns: 1fr;
-}
-@media (min-width: 720px) {
-  .gallery-grid { grid-template-columns: 1fr 1fr; }
-}
-@media (min-width: 1080px) {
-  .gallery-grid { grid-template-columns: repeat(3, 1fr); }
-}
-
-/* --- download --------------------------------------------------------- */
-
-.platforms {
-  display: grid;
-  gap: 0;
-  border-top: 1px solid var(--hairline);
-  margin-bottom: var(--s4);
-}
-
-.platforms li {
-  display: grid;
-  gap: var(--s1) var(--s3);
-  padding: var(--s3) 0;
-  border-bottom: 1px solid var(--hairline);
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 720px) {
-  .platforms li {
-    grid-template-columns: 200px 1fr auto;
-    align-items: baseline;
-  }
-}
-
-.platform-name { font-weight: 500; }
-.platform-file code { font-size: var(--small); }
-.platform-note { color: var(--muted); font-size: var(--small); }
-
-.button-row { margin-bottom: var(--s6); }
-
-.requirements {
-  padding: var(--s3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
-  background: var(--card);
-  max-width: 62ch;
-}
-.requirements h3 { font-size: var(--title); margin-bottom: var(--s1); }
-.requirements p { color: var(--muted); margin-bottom: var(--s2); }
-.requirements ul { display: grid; gap: var(--s1); margin-bottom: var(--s2); }
-.requirements li { color: var(--muted); }
-.requirements li a { color: var(--accent); }
-
-.small { font-size: var(--small); color: var(--muted); }
-
-/* --- footer ----------------------------------------------------------- */
-
-.site-foot {
-  border-top: 1px solid var(--hairline);
-  padding: var(--s5) var(--s3) var(--s6);
-  display: grid;
-  gap: var(--s3);
-  max-width: 1180px;
-  margin: 0 auto;
-}
-
-@media (min-width: 720px) {
-  .site-foot {
-    grid-template-columns: auto 1fr;
-    align-items: center;
-  }
-  .site-foot .small { grid-column: 1 / -1; }
-}
-
-.foot-brand {
+.faq summary {
   display: flex;
   align-items: center;
-  gap: var(--s1);
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-block: var(--s-4);
+  font-size: var(--t-lead);
+  font-weight: 500;
+  letter-spacing: var(--track-title);
+  cursor: pointer;
+  list-style: none;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq summary svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  transition: transform var(--dur-short) var(--ease-out),
+    color var(--dur-short) ease;
+}
+
+.faq details[open] summary svg {
+  transform: rotate(45deg);
+  color: var(--ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .faq summary:hover svg {
+    color: var(--ink);
+  }
+}
+
+.faq details p {
+  padding-bottom: var(--s-4);
+  max-width: 62ch;
+  font-size: var(--t-body);
+  color: var(--muted);
+}
+
+.faq details p + p {
+  padding-top: 0;
+}
+
+/* --------------------------------------------------------------- the close */
+
+/* The one inverted band. It names its own roles, so the light theme inverts
+ * the paper and the dark theme raises a card: a black band on a black page is
+ * not a band, and a button that swaps --page and --ink is a button that turns
+ * invisible the moment the scheme changes. */
+.close {
+  padding-block: clamp(var(--s-16), 9vw, var(--s-24));
+  background: var(--band);
+  color: var(--band-ink);
+}
+
+:root[data-theme="dark"] .close {
+  border-block: 1px solid var(--rule);
+}
+
+.close__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(var(--s-8), 6vw, var(--s-16));
+  align-items: center;
+}
+
+.close h2 {
+  font-size: var(--t-headline);
   font-weight: 600;
-  font-size: var(--small);
+  letter-spacing: var(--track-headline);
+  line-height: var(--lead-headline);
+  max-width: 16ch;
 }
 
-.site-foot nav {
+.close p {
+  color: var(--band-muted);
+  max-width: 44ch;
+}
+
+.close .btn--primary {
+  background: var(--band-ink);
+  color: var(--band);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .close .btn--primary:hover {
+    background: color-mix(in oklab, var(--band-ink) 84%, var(--band));
+  }
+}
+
+.close__text {
+  display: grid;
+  gap: var(--s-6);
+  justify-items: start;
+}
+
+.close .window {
+  background: color-mix(in oklab, var(--band-ink) 8%, var(--band));
+  border-color: var(--band-rule);
+  box-shadow: none;
+}
+
+.close .window img {
+  border-color: var(--band-rule);
+}
+
+:root[data-theme="dark"] .close .window {
+  background: var(--rail);
+  border-color: var(--rule);
+}
+
+@media (max-width: 60rem) {
+  .close__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------- the foot */
+
+.foot {
+  padding-block: var(--s-12);
+}
+
+.foot__grid {
   display: flex;
-  gap: var(--s3);
-  font-size: var(--small);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4) var(--s-8);
 }
-.site-foot nav a { color: var(--muted); text-decoration: none; }
-.site-foot nav a:hover { color: var(--ink); }
 
-/* --- the reveal ------------------------------------------------------- */
+.foot__mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-weight: 600;
+  font-size: var(--t-body);
+}
 
-/* A page comes in from a little below, once. It is the only motion on the
-   page besides the theme icon and a button's press.
- *
- * The hidden state is applied by the script, not by this file: if the script
- * never runs, nothing may be left invisible. That is what `.js` on the root is
- * for, and why it is added by the inline script in the head.
- *
- * Without `.js` there is no rule at all, so every element keeps the default
- * opacity of 1. That is the whole safety of this pattern. */
-html.js .reveal {
-  transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out);
+.foot__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-6);
+  font-size: var(--t-body);
+  color: var(--muted);
+}
+
+.foot__links a {
+  transition: color var(--dur-short) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .foot__links a:hover {
+    color: var(--ink);
+  }
+}
+
+.foot__line {
+  flex-basis: 100%;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-caption);
+  color: var(--muted);
+  max-width: 78ch;
+}
+
+/* ----------------------------------------------------------------- reveals */
+
+/* Entering the viewport: a short lift, a short fade, and a blur that clears.
+ * 800ms with a strong ease out, once, and only on the way in. */
+.reveal {
   opacity: 0;
-  transform: translateY(14px);
+  transform: translateY(16px);
+  transition: opacity var(--dur-reveal) var(--ease-out),
+    transform var(--dur-reveal) var(--ease-out);
 }
-html.js .reveal[data-shown="true"] {
+
+.reveal[data-blur="true"] {
+  filter: blur(6px);
+  transition: opacity var(--dur-reveal) var(--ease-out),
+    transform var(--dur-reveal) var(--ease-out),
+    filter var(--dur-reveal) var(--ease-out);
+}
+
+.reveal.is-in {
   opacity: 1;
   transform: none;
+  filter: none;
 }
 
+.reveal[data-delay="1"] { transition-delay: 60ms; }
+.reveal[data-delay="2"] { transition-delay: 120ms; }
+.reveal[data-delay="3"] { transition-delay: 180ms; }
+.reveal[data-delay="4"] { transition-delay: 240ms; }
+.reveal[data-delay="5"] { transition-delay: 300ms; }
+
+/* Reduced motion: the page arrives, it just does not travel. Colour and
+ * opacity stay, so a state change is still legible. */
 @media (prefers-reduced-motion: reduce) {
-  /* Fewer and gentler, not none: the fade stays, the movement goes. The
-     selector matches the hidden rule's specificity, or it would lose to it. */
-  html.js .reveal,
-  html.js .reveal:not([data-shown="true"]) {
+  .reveal,
+  .reveal[data-blur="true"] {
     opacity: 1;
     transform: none;
+    filter: none;
     transition: none;
   }
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+
+  .tagline .word {
+    opacity: 1;
+    transition: none;
+  }
+
+  .menu a,
+  .menu[data-open="true"] a {
+    transform: none;
+    opacity: 1;
+    transition: none;
+  }
+
+  .btn:active,
+  .swatch:active,
+  .theme-toggle:active {
+    transform: none;
+  }
 }

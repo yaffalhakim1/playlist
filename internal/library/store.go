@@ -72,8 +72,15 @@ type Data struct {
 	Mode    string   `json:"mode"`
 	Accent  string   `json:"accent"`
 	Dynamic bool     `json:"dynamic"`
-	Palette string   `json:"palette"`
-	Discord bool     `json:"discord"`
+	// Palette is kept so an older settings file still loads; nothing reads it.
+	Palette string `json:"palette,omitempty"`
+	// Material is the strength of the window's backdrop: "", "tabbed", "mica"
+	// or "acrylic", which are Windows 11's three system backdrops.
+	Material string `json:"material,omitempty"`
+	// Solid says the window draws its own opaque face instead of the material
+	// behind it.
+	Solid   bool `json:"solid,omitempty"`
+	Discord bool `json:"discord"`
 	// LastFMKey and LastFMSecret are the application's own credentials, which
 	// a release build does not carry: Last.fm issues them per application, and
 	// the user enters them in the Look page.
@@ -263,6 +270,24 @@ func (s *Store) SetSession(session Session) {
 	s.save()
 }
 
+// ForgetCache drops the tracks kept for a link, so the next open reads the
+// playlist from YouTube again.
+//
+// It leaves the recent list and the session alone: a re-sync is "read this again",
+// not "forget this".
+func (s *Store) ForgetCache(link string) {
+	s.mu.Lock()
+	cached := s.data.Cached[:0]
+	for _, item := range s.data.Cached {
+		if item.Link != link {
+			cached = append(cached, item)
+		}
+	}
+	s.data.Cached = cached
+	s.mu.Unlock()
+	s.save()
+}
+
 // ForgetPlaylist removes a playlist from everything the app remembers about
 // it: the recent list, the cached tracks, and the session, if it was the one
 // open.
@@ -344,6 +369,22 @@ func (s *Store) SetAppearance(mode, accent string, dynamic bool, palette string)
 	s.data.Accent = accent
 	s.data.Dynamic = dynamic
 	s.data.Palette = palette
+	s.mu.Unlock()
+	s.save()
+}
+
+// Material returns the window's backdrop and whether it draws its own face.
+func (s *Store) Material() (material string, solid bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.data.Material, s.data.Solid
+}
+
+// SetMaterial remembers the window's backdrop.
+func (s *Store) SetMaterial(material string, solid bool) {
+	s.mu.Lock()
+	s.data.Material = material
+	s.data.Solid = solid
 	s.mu.Unlock()
 	s.save()
 }

@@ -1,7 +1,7 @@
 package src
 
 import (
-	"path/filepath"
+	"fmt"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -10,98 +10,82 @@ import (
 	"youtube-playlist/internal/music"
 )
 
-// These tests check what the redesign changed in the app's behaviour rather
-// than in its look: the accent a user picks, and what a page says when there is
+// These tests check what the redesign changed in the app's behaviour rather than
+// in its look: the one appearance setting, and what a page says when there is
 // nothing to show.
 
-// TestAccentCanBeUnmade checks the round trip the Look page now offers: a user
-// picks a colour, and can go back to the design's own.
-func TestAccentCanBeUnmade(t *testing.T) {
-	a := &app{art: newArtwork()}
-
-	a.setAccent("#00639b")
-	if a.appearance.accent != "#00639b" {
-		t.Fatalf("the accent was not kept: %q", a.appearance.accent)
-	}
-	if a.appearance.dynamic {
-		t.Error("picking a colour should stop the accent following the artwork")
-	}
-
-	a.setAccent("")
-	if a.appearance.accent != "" {
-		t.Errorf("the accent was not unmade: %q", a.appearance.accent)
-	}
-	if a.appearance.dynamic {
-		t.Error("unmaking the accent should not turn the artwork colour on")
-	}
-}
-
-// TestDynamicAccentClearsTheChosenOne checks that turning the artwork colour on
-// clears a colour the user picked before, so only one of the two decides.
-func TestDynamicAccentClearsTheChosenOne(t *testing.T) {
-	a := &app{art: newArtwork()}
-	a.setAccent("#00639b")
-	a.setDynamic(true)
-	if a.appearance.accent != "" {
-		t.Errorf("the picked colour survived the artwork colour: %q", a.appearance.accent)
-	}
-	if !a.appearance.dynamic {
-		t.Error("the artwork colour was not turned on")
-	}
-}
-
-// TestAccentIsRemembered checks that the choice survives the run: the store is
-// what makes it a setting rather than a mood.
-func TestAccentIsRemembered(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "settings.json")
-	store, err := library.Open(path)
-	if err != nil {
-		t.Fatalf("open the store: %v", err)
-	}
+// TestAppearanceIsRemembered checks that the choice survives the run: the store
+// is what makes it a setting rather than a mood.
+func TestAppearanceIsRemembered(t *testing.T) {
+	store := openStore(t)
 	a := &app{art: newArtwork(), store: store}
-	a.setAccent("#386a20")
+	a.setMode("Dark")
 
-	reopened, err := library.Open(path)
-	if err != nil {
-		t.Fatalf("reopen the store: %v", err)
-	}
-	mode, accent, dynamic, _ := reopened.Appearance()
-	if accent != "#386a20" {
-		t.Errorf("the accent came back as %q, not #386a20", accent)
-	}
-	if dynamic {
-		t.Error("the artwork colour came back on")
-	}
-	if mode == "" {
-		t.Error("the appearance came back empty")
+	mode, _, _, _ := store.Appearance()
+	if mode != "dark" {
+		t.Errorf("the appearance came back as %q, not dark", mode)
 	}
 }
 
-// TestAccentIsLaidOverThePalette checks that a picked accent reaches the theme
-// the frame installs, and that what the theme derives from it is derived.
-func TestAccentIsLaidOverThePalette(t *testing.T) {
+// TestTheThemeIsPaperAndInk checks the one thing the design insists on: the
+// window has no accent hue. The accent is the near-black of a filled button, so
+// a list of covers is the only colour on the page.
+func TestTheThemeIsPaperAndInk(t *testing.T) {
 	a := &app{art: newArtwork()}
-	a.setAccent("#00639b")
 	theme := a.themeInFrame(t)
 
-	want := ui.Hex("#00639b")
-	if theme.Accent != want {
-		t.Errorf("the theme's accent is not the one picked")
+	if theme.Background != ui.Hex(paperPage) {
+		t.Errorf("the page is not the paper: %v", theme.Background)
 	}
-	if (theme.AccentText == ui.Color{}) {
-		t.Error("nothing is written on the accent")
+	if theme.Surface != ui.Hex(paperCard) {
+		t.Errorf("a card is not white: %v", theme.Surface)
 	}
-	if (theme.Selection == ui.Color{}) {
-		t.Error("nothing is marked as chosen")
+	if theme.Text != ui.Hex(paperInk) {
+		t.Errorf("the ink is not the design's: %v", theme.Text)
 	}
-	if (theme.Focus == ui.Color{}) {
-		t.Error("the focus ring has no colour")
+	// The accent is a near-black, not a hue: its channels are within a few
+	// points of each other.
+	if spread := channelSpread(theme.Accent); spread > 12 {
+		t.Errorf("the accent has a hue (channel spread %d): the window is paper and ink", spread)
 	}
-	// The hover and the pressed face have to differ from the face itself, or a
-	// button gives no sign it was touched.
-	if theme.AccentHover == theme.Accent || theme.AccentPressed == theme.Accent {
-		t.Error("the accent's hover and pressed faces are the accent itself")
+}
+
+// TestTheDarkAppearanceIsTheSameScheme checks that the dark mode is the paper
+// turned over, not a second design.
+func TestTheDarkAppearanceIsTheSameScheme(t *testing.T) {
+	a := &app{art: newArtwork()}
+	var theme *ui.Theme
+	tester := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(a.theme(c))
+		theme = c.Theme()
+	}, 40, 40)
+	tester.SetDark(true)
+	tester.Frame()
+
+	if !theme.Dark {
+		t.Fatal("the dark appearance did not reach the theme")
 	}
+	if theme.Background != ui.Hex(inkPage) {
+		t.Errorf("the dark page is not the design's: %v", theme.Background)
+	}
+	if theme.Text != ui.Hex(inkText) {
+		t.Errorf("the dark ink is not the design's: %v", theme.Text)
+	}
+}
+
+// channelSpread is how far apart a colour's channels are: 0 is a grey, and a
+// large spread is a hue.
+func channelSpread(c ui.Color) int {
+	lo, hi := 255, 0
+	for _, v := range []int{int(c.R), int(c.G), int(c.B)} {
+		if v < lo {
+			lo = v
+		}
+		if v > hi {
+			hi = v
+		}
+	}
+	return hi - lo
 }
 
 // themeInFrame returns the theme the app installs at a frame.
@@ -127,9 +111,8 @@ func TestEveryPageHasAnEmptyState(t *testing.T) {
 		page string
 		want string
 	}{
-		{pagePlaylist, "No playlist yet"},
-		{pagePlayer, "Nothing playing"},
 		{pageQueue, "The queue is empty"},
+		{pagePlayer, "Nothing playing"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.page, func(t *testing.T) {
@@ -161,24 +144,44 @@ func TestEmptyPlayerLeavesNoDeadControls(t *testing.T) {
 	tester := ui.NewTester(a.frame, 1280, 840)
 	tester.Frame()
 	if !tester.HasText("Nothing playing") {
-		t.Errorf("the bar does not say that nothing plays: %v", tester.Texts())
+		t.Errorf("the rail does not say that nothing plays: %v", tester.Texts())
 	}
 }
 
-// TestPlayingFromNamesThePlaylist checks the card on the home page that says
-// what the queue is, and that it opens the queue.
-func TestPlayingFromNamesThePlaylist(t *testing.T) {
+// TestHomeShowsThePlaylistThatIsOpen checks the hero: the page leads with the
+// playlist the app has loaded, not with a name for the page.
+func TestHomeShowsThePlaylistThatIsOpen(t *testing.T) {
 	a := loaded(pageHome)
 	tester := ui.NewTester(a.frame, 1280, 840)
 	tester.Frame()
 
-	if !tester.HasText("Playing from") {
-		t.Errorf("the page does not say what plays from where: %v", tester.Texts())
-	}
 	if !tester.HasText("Mix - Bruno Mars - It Will Rain") {
 		t.Errorf("the page does not name the playlist: %v", tester.Texts())
 	}
-	if err := tester.Click("Open queue"); err != nil {
+	if !tester.HasText("It Will Rain") {
+		t.Errorf("the page does not list the playlist's tracks: %v", tester.Texts())
+	}
+	if !tester.HasText("Now playing from") {
+		t.Errorf("the page does not say what the hero is: %v", tester.Texts())
+	}
+}
+
+// TestHomePointsAtTheQueueForTheRest checks that the table does not try to show
+// a thousand rows: it shows a handful and says where the rest are.
+func TestHomePointsAtTheQueueForTheRest(t *testing.T) {
+	a := loaded(pageHome)
+	a.queue = a.queue[:0]
+	for i := range 40 {
+		a.queue = append(a.queue, music.Track{ID: fmt.Sprintf("t%d", i), Title: fmt.Sprintf("Track %d", i)})
+	}
+	a.visible = allTracks(a.queue)
+	tester := ui.NewTester(a.frame, 1280, 840)
+	tester.Frame()
+
+	if !tester.HasText("All 40 tracks") {
+		t.Errorf("the table does not point at the queue for the rest: %v", tester.Texts())
+	}
+	if err := tester.Click("All 40 tracks"); err != nil {
 		t.Fatalf("open the queue: %v", err)
 	}
 	tester.Frame()
@@ -187,8 +190,8 @@ func TestPlayingFromNamesThePlaylist(t *testing.T) {
 	}
 }
 
-// TestPickingAPlaylistLoadsIt checks that a recent playlist is played from its
-// card, which is what the shelf of covers is for.
+// TestPickingAPlaylistLoadsIt checks that a playlist of the shelf is played from
+// its card, which is what the shelf is for.
 func TestPickingAPlaylistLoadsIt(t *testing.T) {
 	a := loaded(pageHome)
 	a.link = ""

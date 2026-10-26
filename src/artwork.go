@@ -17,6 +17,8 @@ import (
 type artwork struct {
 	mu      sync.Mutex
 	bitmaps map[string]*ui.Bitmap
+	// colors is the hue each picture casts, for the artwork accent. It is read
+	// from the same bytes as the bitmap, so a cover is decoded once.
 	colors  map[string]string
 	loading map[string]bool
 	onReady func()
@@ -44,8 +46,8 @@ func (a *artwork) get(url string) *ui.Bitmap {
 	return a.bitmaps[url]
 }
 
-// color returns the colour of a picture, as a hex string, or "" when the
-// picture is not there yet.
+// color returns the hue a picture casts, as a hex string, or "" when the picture
+// is not there yet or has no colour worth taking.
 func (a *artwork) color(url string) string {
 	if url == "" {
 		return ""
@@ -84,8 +86,8 @@ func (a *artwork) want(url string) {
 	}()
 }
 
-// fetchArtwork reads a picture and turns it into something the interface can
-// draw, and reads the colour of it.
+// fetchArtwork reads a picture, turns it into something the interface can draw,
+// and reads the hue of it.
 func fetchArtwork(url string) (*ui.Bitmap, string, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Get(biggerArtwork(url))
@@ -120,8 +122,8 @@ func (e *netError) Error() string { return "the picture answered " + e.status }
 
 // biggerArtwork asks for the largest picture of a track.
 //
-// The addresses of YouTube come in several sizes; the one of an item in a
-// list is small, and the big one is worth asking for when a track plays.
+// The addresses of YouTube come in several sizes; the one of an item in a list is
+// small, and the big one is worth asking for when a track plays.
 func biggerArtwork(url string) string {
 	const prefix = "https://i.ytimg.com/vi/"
 	if !strings.HasPrefix(url, prefix) {
