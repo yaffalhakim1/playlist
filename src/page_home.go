@@ -213,7 +213,10 @@ func (a *app) homeTracks(c *ui.Context) {
 				trackHead(c, "Title", true)
 				trackHead(c, "Artist", false)
 				trackHead(c, "Album / Tape", false)
-				ui.Box(c).Width(t.Space(12)).Children(func() {
+				// The heading sits in the same box as the row's clock, so the
+				// two line up. 16 units is 64 DIPs: wide enough for the word
+				// at caption size, where 12 broke it into "Duratio n".
+				ui.Box(c).Width(t.Space(16)).Shrink(0).Children(func() {
 					ui.Text(c, "Duration").FontSize(t.Rem(remCaption)).FontWeight(600).
 						LetterSpacing(0.06 * t.Rem(remCaption)).TextColor(s.muted()).
 						TextAlign(ui.End).Grow(1)

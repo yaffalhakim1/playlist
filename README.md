@@ -34,13 +34,15 @@ because a mix is built from the track, not from your history.
 
 | | |
 |---|---|
-| ![Playlist](docs/screenshots/playlist.png) | ![Player](docs/screenshots/player.png) |
-| The playlist, its cover and its songs | The player, and what plays next |
-| ![Stats](docs/screenshots/stats.png) | ![Look](docs/screenshots/look.png) |
-| Plays per day, and the tracks played most | The theme, the colour, and the queue |
+| ![Home](docs/screenshots/home.png) | ![Playlist](docs/screenshots/playlist.png) |
+| The link field, the playlist that is open, and its first tracks | The playlist: its cover, its name, and the whole list |
+| ![Player](docs/screenshots/player.png) | ![History](docs/screenshots/stats.png) |
+| The track big, with the queue beside it | Plays per day, and the tracks played most |
+| ![Appearance](docs/screenshots/look.png) | |
+| The theme, the accent, and the window material | |
 
-The accent comes from the cover of the track that plays. Dark mode follows
-the desktop:
+The accent can be a tone you pick, or the colour taken from the cover of the
+track that plays. Dark mode follows the desktop:
 
 ![Home in dark mode](docs/screenshots/home-dark.png)
 

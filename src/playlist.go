@@ -200,7 +200,8 @@ func (a *app) trackTableRow(c *ui.Context, i int) {
 			})
 			cell(c, track.Artist, s.muted(), false)
 			cell(c, track.Album, s.muted(), false)
-			ui.Box(c).Width(t.Space(10)).Shrink(0).Children(func() {
+			// The same width as the heading above, so the clock sits under it.
+			ui.Box(c).Width(t.Space(16)).Shrink(0).Children(func() {
 				ink := s.muted()
 				if playing {
 					ink = s.text()
